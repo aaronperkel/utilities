@@ -1,12 +1,15 @@
-<footer class="site-footer">
+</div>
+<footer class="site-footer card">
     <div class="footer-container">
-        <p>81 Buell Utilities. Updated November 2025. Version 4.0</p>
-        <p>
-            <!-- Note: Contact phone and email are hardcoded here.
-                 For a more configurable system, these could be moved to .env variables. -->
-            <a href="tel:4782628935">478‑262‑8935</a> |
+        <div class="footer-left">
+            <strong>81 Buell Utilities</strong>
+            <div class="muted">Updated December 2025 • Version 5.0</div>
+        </div>
+        <div class="footer-right">
+            <a href="tel:4782628935">478‑262‑8935</a>
+            <span class="sep">|</span>
             <a href="mailto:me@aaronperkel.com">me@aaronperkel.com</a>
-        </p>
+        </div>
     </div>
 </footer>
 </body>

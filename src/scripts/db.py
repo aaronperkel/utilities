@@ -154,10 +154,11 @@ SMTP_PORT = 587 # Standard SMTP port for TLS.
 db_manager = None # Global instance of DatabaseManager, initialized in main().
 
 # --- Email Functions ---
-def get_email_body(due_date_str: str, item_str: str, total: float, cost: float, app_base_url: str, from_name: str, from_contact_email: str) -> str:
+def get_email_body(due_date_str: str, item_str: str, total: float, cost: float, app_base_url: str, from_name: str, from_contact_email: str, person_name: str = "there") -> str:
     """
     Generates the HTML body for reminder emails.
     Formats the due date and includes bill item, details, and a link to the portal.
+    Uses modern, clean styling consistent with the web portal.
     """
     try:
         date_obj = datetime.datetime.strptime(due_date_str, DATE_FORMAT_STR)
@@ -167,22 +168,16 @@ def get_email_body(due_date_str: str, item_str: str, total: float, cost: float, 
 
     portal_link = f"{app_base_url}/index.php"
 
-    return f"""
-<p style="font: 14pt serif;">Hello,</p>
-<p style="font: 14pt serif;">This is a reminder that your <strong>{item_str}</strong> bill is due on {readable_due_date}.</p>
-<ul>
-    <li style="font: 14pt serif;">Bill total: ${total:.2f}</li>
-    <li style="font: 14pt serif;">Your share: ${cost:.2f}</li>
-</ul>
-<p style="font: 14pt serif;">
-    Please login to
-    <a href="{portal_link}">{from_name} Portal</a>
-    for more info.
-</p>
-<p style="font: 14pt serif;">
-    <span style="color: green;">{from_name}</span><br>
-    Contact: {from_contact_email}
-</p>
+    return f"""<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial; color:#0f1724;">
+    <h2 style="margin:0 0 8px 0; font-size:18px; color:#111827;">Reminder: {item_str}</h2>
+    <p style="margin:0 0 8px 0; color:#374151; font-size:14px;">Hello {person_name},</p>
+    <p style="margin:0 0 8px 0; color:#374151; font-size:14px;">This is a reminder that your <strong>{item_str}</strong> bill (total: ${total:.2f}) is due on <strong>{readable_due_date}</strong>. Your share: <strong>${cost:.2f}</strong>.</p>
+    <p style="margin:0 0 12px 0;">
+        <a href="{portal_link}" style="display:inline-block;padding:8px 12px;background:linear-gradient(90deg, #7C4DFF, #5B8DEF);color:#fff;border-radius:8px;text-decoration:none;">View details</a>
+    </p>
+    <hr style="border:none;border-top:1px solid #eef2ff;margin:12px 0;">
+    <p style="margin:0;color:#6b7280;font-size:13px;">{from_name} — <a href="mailto:{from_contact_email}">{from_contact_email}</a></p>
+</div>
 """
 
 def send_email(recipient_email: str, subject: str, body_html: str) -> bool:
@@ -204,8 +199,6 @@ def send_email(recipient_email: str, subject: str, body_html: str) -> bool:
     if APP_DRY_RUN_ENABLED:
         print(f"[DRY RUN] Would send email to: {recipient_email}")
         print(f"[DRY RUN] Subject: '{subject}'")
-        # print(f"[DRY RUN] Body (first 100 chars): {body_html[:100]}...")
-        send_confirmation_email(recipient_email, subject, body_html, dry_run=True)
         return True
 
     try:
@@ -216,13 +209,6 @@ def send_email(recipient_email: str, subject: str, body_html: str) -> bool:
             server.login(PYTHON_SENDER_EMAIL, EMAIL_PASS)
             server.sendmail(PYTHON_SENDER_EMAIL, [recipient_email], msg.as_string())
         print(f"Email successfully sent to {recipient_email} with subject '{subject}'.")
-
-        send_confirmation_email(
-            original_recipient=recipient_email,
-            original_subject=subject,
-            original_email_body=body_html,
-            dry_run=False
-        )
         return True
     except (smtplib.SMTPException, socket.error) as e:
         print(f"[ERROR] SMTP error while sending email to {recipient_email}: {e}")
@@ -232,26 +218,53 @@ def send_email(recipient_email: str, subject: str, body_html: str) -> bool:
         return False
 
 
-def send_confirmation_email(original_recipient: str, original_subject: str, original_email_body: str, dry_run: bool = False):
-    """Sends a confirmation email to the admin about the reminder that was sent.
+def send_batch_confirmation_email(sent_list: list, dry_run: bool = False):
+    """Sends a single consolidated confirmation email to the admin listing all reminders sent.
+       sent_list is a list of dicts with 'recipient', 'subject', 'item', 'person_name' keys.
        If dry_run is True, it simulates sending."""
     global APP_EMAIL_FROM_NAME, PYTHON_SENDER_EMAIL, PYTHON_CONFIRMATION_EMAIL_TO, EMAIL_PASS
-    confirmation_subject = 'Notification Sent Confirmation (Utility Bills Script)'
-    confirmation_body = f"""<p style="font: 12pt monospace;">A reminder email was sent via the Utility Bills Script.</p>
-<hr>
-<p style="font: 12pt monospace;"><b>Original Recipient:</b> {original_recipient}</p>
-<p style="font: 12pt monospace;"><b>Original Subject:</b> {original_subject}</p>
-<hr>
-<p style="font: 12pt monospace;">--- Original Email Body ---</p>
-{original_email_body}
+    
+    if not sent_list:
+        print("[INFO] No reminders were sent, skipping admin confirmation email.")
+        return
+    
+    confirmation_subject = f'Daily Reminder Batch Report ({len(sent_list)} sent)'
+    
+    # Build the list of recipients
+    recipient_rows = ""
+    for item in sent_list:
+        recipient_rows += f"""<tr>
+            <td style="padding:6px 12px;border-bottom:1px solid #eef2ff;">{item['person_name']}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid #eef2ff;">{item['recipient']}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid #eef2ff;">{item['item']}</td>
+        </tr>"""
+    
+    confirmation_body = f"""<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#111827;">
+    <h3 style="margin:0 0 12px 0;">Daily Reminder Batch Report</h3>
+    <p style="margin:0 0 12px 0;color:#374151;">The following <strong>{len(sent_list)}</strong> reminder emails were sent:</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+            <tr style="background:#f8fafc;">
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Name</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Email</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Bill Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            {recipient_rows}
+        </tbody>
+    </table>
+    <hr style="border:none;border-top:1px solid #eef2ff;margin:16px 0;">
+    <p style="margin:0;color:#6b7280;font-size:13px;">{APP_EMAIL_FROM_NAME} — Automated Daily Script</p>
+</div>
 """
     msg = MIMEText(confirmation_body, 'html')
     msg['Subject'] = confirmation_subject
-    msg['From'] = f"{APP_EMAIL_FROM_NAME} Script Notifier <{PYTHON_SENDER_EMAIL}>"
+    msg['From'] = f"{APP_EMAIL_FROM_NAME} <{PYTHON_SENDER_EMAIL}>"
     msg['To'] = PYTHON_CONFIRMATION_EMAIL_TO
 
     if dry_run:
-        print(f"[DRY RUN] Would send admin confirmation for reminder to '{original_recipient}' (Subject: '{original_subject}') to: {PYTHON_CONFIRMATION_EMAIL_TO}")
+        print(f"[DRY RUN] Would send batch confirmation to: {PYTHON_CONFIRMATION_EMAIL_TO}")
         return
 
     try:
@@ -261,11 +274,11 @@ def send_confirmation_email(original_recipient: str, original_subject: str, orig
             server.ehlo()
             server.login(PYTHON_SENDER_EMAIL, EMAIL_PASS)
             server.sendmail(PYTHON_SENDER_EMAIL, [PYTHON_CONFIRMATION_EMAIL_TO], msg.as_string())
-        print(f"Confirmation email successfully sent to {PYTHON_CONFIRMATION_EMAIL_TO}.")
+        print(f"Batch confirmation email successfully sent to {PYTHON_CONFIRMATION_EMAIL_TO}.")
     except (smtplib.SMTPException, socket.error) as e:
-        print(f"[ERROR] SMTP error while sending confirmation email to {PYTHON_CONFIRMATION_EMAIL_TO}: {e}")
+        print(f"[ERROR] SMTP error while sending batch confirmation email to {PYTHON_CONFIRMATION_EMAIL_TO}: {e}")
     except Exception as e:
-        print(f"[ERROR] Unexpected error sending confirmation to {PYTHON_CONFIRMATION_EMAIL_TO}: {e}")
+        print(f"[ERROR] Unexpected error sending batch confirmation to {PYTHON_CONFIRMATION_EMAIL_TO}: {e}")
 
 
 # --- Main Execution Block ---
@@ -323,6 +336,7 @@ if __name__ == '__main__':
 
         email_sent_count = 0    # Counter for successfully sent emails.
         email_failed_count = 0  # Counter for failed email attempts.
+        sent_reminders_list = []  # Track successfully sent reminders for batch confirmation
 
         for bill_info in unpaid_bills_data:
             # Extract data from the bill_info dictionary
@@ -358,7 +372,8 @@ if __name__ == '__main__':
                         cost=cost_per_person_val,
                         app_base_url=APP_BASE_URL,
                         from_name=APP_EMAIL_FROM_NAME,
-                        from_contact_email=PYTHON_SENDER_EMAIL
+                        from_contact_email=PYTHON_SENDER_EMAIL,
+                        person_name=person_name_str
                     )
 
                     if send_email(
@@ -368,6 +383,12 @@ if __name__ == '__main__':
                     ):
                         # Success/Dry-run message is printed by send_email()
                         email_sent_count += 1
+                        sent_reminders_list.append({
+                            'recipient': recipient_email_str,
+                            'subject': subject_str,
+                            'item': item_str,
+                            'person_name': person_name_str
+                        })
                     else:
                         # Failure message is printed by send_email()
                         email_failed_count += 1
@@ -386,6 +407,11 @@ if __name__ == '__main__':
         print(f"Total reminder emails attempted: {email_sent_count + email_failed_count}")
         print(f"Successfully sent: {email_sent_count}")
         print(f"Failed to send: {email_failed_count}")
+        
+        # Send a single consolidated confirmation email to admin
+        if sent_reminders_list:
+            print('-------------- Admin Notification --------------')
+            send_batch_confirmation_email(sent_reminders_list, dry_run=APP_DRY_RUN_ENABLED)
 
     elif unpaid_bills_data is None: # This case should ideally not be reached if get_unpaid_bills returns [].
         print("Critical error: Could not retrieve bill information. Email scheduling aborted.")

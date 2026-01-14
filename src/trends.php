@@ -1,4 +1,73 @@
-<?php include 'top.php';
+<?php
+// CSV export must happen BEFORE any HTML output
+// Include DB connection only (not top.php which outputs HTML)
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    // Start output buffering to catch any stray output from connect-DB.php
+    ob_start();
+    
+    // Suppress display errors for CSV output
+    ini_set('display_errors', 0);
+    error_reporting(0);
+    
+    include 'connect-DB.php';
+    
+    // Fetch data for CSV
+    $sql = "
+      SELECT
+        DATE_FORMAT(STR_TO_DATE(fldDate,'%Y-%m-%d'), '%Y-%m') AS month,
+        fldItem,
+        SUM(fldTotal) AS total
+      FROM tblUtilities
+      WHERE fldItem IN ('Gas','Electric')
+      GROUP BY month, fldItem
+      ORDER BY month
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Pivot into monthly array
+    $monthly = [];
+    foreach ($data as $r) {
+        $m = $r['month'];
+        if (!isset($monthly[$m])) {
+            $monthly[$m] = ['Gas' => 0, 'Electric' => 0];
+        }
+        $monthly[$m][$r['fldItem']] = (float) $r['total'];
+    }
+    
+    $labels = array_keys($monthly);
+    
+    // Limit to last 12 months for display (CSV exports all data though)
+    // For CSV, we'll export all data - users can filter in Excel
+    
+    // Build last year data
+    $lastYearGas = [];
+    $lastYearElec = [];
+    foreach ($labels as $label) {
+        [$y, $m] = explode('-', $label);
+        $lyKey = ($y - 1) . '-' . $m;
+        $lastYearGas[] = isset($monthly[$lyKey]) ? $monthly[$lyKey]['Gas'] : '';
+        $lastYearElec[] = isset($monthly[$lyKey]) ? $monthly[$lyKey]['Electric'] : '';
+    }
+    
+    // Output CSV (full history)
+    // Clean any buffered output (from connect-DB.php, etc.)
+    ob_end_clean();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="utilities-trends.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Month', 'Gas', 'Electric', 'Gas Last Year', 'Electric Last Year'], ',', '"', '');
+    foreach ($labels as $i => $label) {
+        $gasVal = $monthly[$label]['Gas'] ?? '';
+        $elecVal = $monthly[$label]['Electric'] ?? '';
+        fputcsv($out, [$label, $gasVal, $elecVal, $lastYearGas[$i], $lastYearElec[$i]], ',', '"', '');
+    }
+    fclose($out);
+    exit;
+}
+
+include 'top.php';
 
 // fetch monthly sums for Gas & Electric
 $sql = "
@@ -26,6 +95,10 @@ foreach ($data as $r) {
 }
 
 $labels = array_keys($monthly);
+
+// Limit to last 12 months
+$labels = array_slice($labels, -12);
+
 $gasData = array_map(fn($m) => $monthly[$m]['Gas'], $labels);
 $elecData = array_map(fn($m) => $monthly[$m]['Electric'], $labels);
 
@@ -115,12 +188,32 @@ foreach ($bill_items as $item) {
     }
 }
 
+// --- Additional series and forecast for charts ---
+// Build series for 'This Time Last Year' (per-month lookup)
+$lastYearGas = [];
+$lastYearElec = [];
+foreach ($labels as $label) {
+    [$y, $m] = explode('-', $label);
+    $lyKey = ($y - 1) . '-' . $m;
+    $lastYearGas[] = isset($monthly[$lyKey]) ? $monthly[$lyKey]['Gas'] : null;
+    $lastYearElec[] = isset($monthly[$lyKey]) ? $monthly[$lyKey]['Electric'] : null;
+}
+// JS-safe arrays for the template
+$js_original_labels = $labels;
+$js_gas = array_map(fn($v) => is_numeric($v) ? (float)$v : null, $gasData);
+$js_elec = array_map(fn($v) => is_numeric($v) ? (float)$v : null, $elecData);
+$js_lastyear_gas = $lastYearGas;
+$js_lastyear_elec = $lastYearElec;
 
 ?>
 <main>
     <h2 class="section-title">Trends</h2>
-    <div class="table-responsive">
+    <div class="chart-wrapper">
         <canvas id="trendsChart"></canvas>
+      <div style="display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+        <p class="chart-note">Dashed lines show last year's series for comparison.</p>
+        <a href="?export=csv" class="btn btn-primary">Export CSV</a>
+      </div>
     </div>
 
     <div class="insights-section">
@@ -139,60 +232,166 @@ foreach ($bill_items as $item) {
             <?php endif; ?>
         </div>
         <div class="insight-card">
-            <h3>Next Month's Outlook (<?= htmlspecialchars($forecast_display_month) ?>)</h3>
-            <p>
-                Forecast based on a seasonal average of previous years, or a simple average of recent months if
-                historical data is limited.
-            </p>
-            <ul>
-                <?php foreach ($forecast_totals as $item => $total): ?>
-                    <li>
-                        <?= htmlspecialchars($item) ?>:
-                        <?= is_numeric($total) ? '$' . number_format($total, 2) : htmlspecialchars($total) ?>
-                        <?php if (is_numeric($total) && !empty($forecast_method[$item])): ?>
-                            <span class="forecast-method">(<?= htmlspecialchars($forecast_method[$item]) ?>)</span>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+          <h3>Export Data</h3>
+          <p>Download the monthly series (Gas & Electric) including last year's values as a CSV for analysis.</p>
+          <a href="?export=csv" class="btn btn-primary">Download CSV</a>
         </div>
     </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // original ISO labels
-    const rawLabels = <?php echo json_encode($labels); ?>;
-    const gasTotals = <?php echo json_encode($gasData); ?>;
-    const elecTotals = <?php echo json_encode($elecData); ?>;
-    const ctx = document.getElementById('trendsChart').getContext('2d');
+const rawLabels = <?php echo json_encode($js_original_labels); ?>;
+const gasTotals = <?php echo json_encode($js_gas); ?>;
+const elecTotals = <?php echo json_encode($js_elec); ?>;
+const lastYearGas = <?php echo json_encode($js_lastyear_gas); ?>;
+const lastYearElec = <?php echo json_encode($js_lastyear_elec); ?>;
+const ctx = document.getElementById('trendsChart').getContext('2d');
 
-    // month name lookup
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const formatLabel = label => {
+  const [y,m] = label.split('-');
+  return `${monthNames[parseInt(m,10)-1]} ${y}`;
+};
 
-    // turn ["2024-07","2024-08",…] into ["Jul 2024","Aug 2024",…]
-    const labels = rawLabels.map(label => {
-        const [year, mon] = label.split('-');
-        return `${monthNames[parseInt(mon, 10) - 1]} ${year}`;
-    });
+const labels = rawLabels.map(formatLabel);
+const allLabels = labels;
 
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [
-                { label: 'Gas', data: gasTotals },
-                { label: 'Electric', data: elecTotals }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                x: { title: { display: true, text: 'Month' } },
-                y: { title: { display: true, text: 'Total ($)' } }
-            }
+// Custom crosshair plugin
+const crosshairPlugin = {
+  id: 'crosshair',
+  afterDraw: (chart) => {
+    if (chart.tooltip?._active?.length) {
+      const activePoint = chart.tooltip._active[0];
+      const ctx = chart.ctx;
+      const x = activePoint.element.x;
+      const topY = chart.scales.y.top;
+      const bottomY = chart.scales.y.bottom;
+      
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, topY);
+      ctx.lineTo(x, bottomY);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(230, 238, 248, 0.3)';
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+};
+
+const datasets = [
+  {
+    label: 'Gas',
+    data: gasTotals,
+    borderColor: '#7C4DFF',
+    backgroundColor: 'rgba(124,77,255,0.12)',
+    tension: 0.3,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    borderWidth: 2.5,
+    fill: true
+  },
+  {
+    label: 'Gas — Last Year',
+    data: lastYearGas,
+    borderColor: 'rgba(124,77,255,0.55)',
+    borderDash: [8,4],
+    tension: 0.3,
+    pointRadius: 0,
+    borderWidth: 2,
+    fill: false
+  },
+  {
+    label: 'Electric',
+    data: elecTotals,
+    borderColor: '#5B8DEF',
+    backgroundColor: 'rgba(91,141,239,0.10)',
+    tension: 0.3,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    borderWidth: 2.5,
+    fill: true
+  },
+  {
+    label: 'Electric — Last Year',
+    data: lastYearElec,
+    borderColor: 'rgba(91,141,239,0.55)',
+    borderDash: [8,4],
+    tension: 0.3,
+    pointRadius: 0,
+    borderWidth: 2,
+    fill: false
+  },
+];
+
+function currencyTick(value) {
+  if (value === undefined || value === null) return '';
+  return '$' + Number(value).toLocaleString(undefined, {maximumFractionDigits:0});
+}
+
+// Detect mobile for responsive chart options
+const isMobile = window.innerWidth < 768;
+
+new Chart(ctx, {
+  type: 'line',
+  data: { labels: allLabels, datasets },
+  plugins: [crosshairPlugin],
+  options: {
+    responsive: true,
+    maintainAspectRatio: !isMobile,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: {
+      legend: { 
+        position: isMobile ? 'bottom' : 'top',
+        labels: {
+          color: 'rgba(230, 238, 248, 0.9)',
+          usePointStyle: true,
+          padding: isMobile ? 10 : 16,
+          boxWidth: isMobile ? 8 : 40,
+          font: { size: isMobile ? 11 : 12 }
         }
-    });
+      },
+      tooltip: {
+        backgroundColor: 'rgba(11, 18, 32, 0.95)',
+        titleColor: '#E6EEF8',
+        bodyColor: '#E6EEF8',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        padding: isMobile ? 8 : 12,
+        displayColors: true,
+        titleFont: { size: isMobile ? 12 : 14 },
+        bodyFont: { size: isMobile ? 11 : 13 },
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y;
+            return ctx.dataset.label + ': ' + (v === null ? 'N/A' : '$' + Number(v).toFixed(2));
+          }
+        }
+      }
+    },
+    scales: {
+      x: { 
+        title: { display: !isMobile, text: 'Month', color: 'rgba(230, 238, 248, 0.7)' },
+        ticks: { 
+          color: 'rgba(230, 238, 248, 0.7)',
+          maxRotation: isMobile ? 45 : 0,
+          font: { size: isMobile ? 10 : 12 }
+        },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      },
+      y: {
+        title: { display: !isMobile, text: 'Total ($)', color: 'rgba(230, 238, 248, 0.7)' },
+        ticks: { 
+          callback: currencyTick, 
+          color: 'rgba(230, 238, 248, 0.7)',
+          font: { size: isMobile ? 10 : 12 }
+        },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    }
+  }
+});
 </script>
 <?php include 'footer.php'; ?>

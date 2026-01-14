@@ -172,12 +172,23 @@ $billsByYear = groupBillsByYear($billsForCurrentPage);
 
 ?>
 <main>
-    <div class="banner">
-        <p>You currently owe <strong>$<?= number_format($userOwedAmount, 2) ?></strong></p>
+    <div class="hero card">
+        <div class="hero-left">
+            <h2>Welcome, <?= htmlspecialchars($userName ?: 'Guest') ?></h2>
+            <p class="hero-sub">Your current outstanding balance</p>
+        </div>
+        <div class="hero-right">
+            <div class="hero-amount">$<?= number_format($userOwedAmount, 2) ?></div>
+            <div class="hero-actions">
+                <a href="trends.php" class="btn">View Trends</a>
+                <a href="trends.php?export=csv" class="btn btn-primary">Export CSV</a>
+            </div>
+        </div>
     </div>
 
     <h2 class="section-title">Utility Bills</h2>
 
+    <div id="bills-container">
     <?php if (empty($billsForCurrentPage)): ?>
         <p>No bills found for this page or no bills available.</p>
     <?php else: ?>
@@ -187,13 +198,12 @@ $billsByYear = groupBillsByYear($billsForCurrentPage);
                 <table>
                     <thead>
                         <tr>
-                            <th>Date Billed</th>
+                            <th>Date</th>
                             <th>Item</th>
-                            <th>Total</th>
-                            <th class="col-cost">Per Person</th>
-                            <th>Due Date</th>
+                            <th>Price</th>
+                            <th>Due</th>
                             <th>Status</th>
-                            <th>See Bill</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -204,23 +214,44 @@ $billsByYear = groupBillsByYear($billsForCurrentPage);
                                 $isOwedByCurrentUser = in_array($cell['pmkBillID'], $userOwedBillIDs);
                             }
                             ?>
-                            <tr>
-                                <td><?= htmlspecialchars($cell['fldDate']) ?></td>
-                                <td><?= htmlspecialchars($cell['fldItem']) ?></td>
-                                <td>$<?= htmlspecialchars(number_format((float) $cell['fldTotal'], 2)) ?></td>
-                                <td class="col-cost">$<?= htmlspecialchars(number_format((float) $cell['fldCost'], 2)) ?></td>
-                                <td><?= htmlspecialchars($cell['fldDue']) ?></td>
-                                <td>
+                            <tr class="bill-row" data-bill-id="<?= htmlspecialchars($cell['pmkBillID']) ?>" data-due="<?= htmlspecialchars($cell['fldDue']) ?>" data-status="<?= $isOwedByCurrentUser ? 'unpaid' : 'paid' ?>">
+                                <?php 
+                                      $billedDate = (new DateTime($cell['fldDate']))->format('M j');
+                                      $billedYear = (new DateTime($cell['fldDate']))->format('Y');
+                                      $isPaid = !$isOwedByCurrentUser;
+                                ?>
+
+                                <td class="date-cell" aria-label="Date billed">
+                                    <div class="date-main"><?= htmlspecialchars($billedDate) ?></div>
+                                    <div class="date-year muted"><?= htmlspecialchars($billedYear) ?></div>
+                                </td>
+
+                                <td class="item-cell">
+                                    <div class="item-name"><?= htmlspecialchars($cell['fldItem']) ?></div>
+                                </td>
+
+                                <td class="price-cell">
+                                    <div class="price-main">$<?= htmlspecialchars(number_format((float) $cell['fldTotal'], 2)) ?></div>
+                                    <div class="price-sub">$<?= htmlspecialchars(number_format((float) $cell['fldCost'], 2)) ?> / person</div>
+                                </td>
+
+                                <td class="due-cell">
+                                    <span class="due-chip" data-due="<?= htmlspecialchars($cell['fldDue']) ?>" data-paid="<?= $isPaid ? '1' : '0' ?>"></span>
+                                </td>
+
+                                <td class="status-cell">
                                     <?php if ($isOwedByCurrentUser): ?>
-                                        <span class="badge badge-unpaid">Unpaid by You</span>
+                                        <span class="badge badge-unpaid" aria-label="Unpaid by you">Unpaid</span>
                                     <?php else: ?>
-                                        <span class="badge badge-paid">Paid by You</span>
+                                        <span class="badge badge-paid" aria-label="Paid by you">Paid</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <a href="<?= htmlspecialchars($cell['fldView']) ?>" target="_blank" class="icon-link">View</a>
-                                    |
-                                    <a href="<?= htmlspecialchars($cell['fldView']) ?>" download class="icon-link">Download</a>
+
+                                <td class="actions-cell">
+                                    <div class="action-btns">
+                                        <a href="<?= htmlspecialchars($cell['fldView']) ?>" target="_blank" class="btn btn-outline" aria-label="View bill <?= htmlspecialchars($cell['pmkBillID']) ?>">View</a>
+                                        <a href="<?= htmlspecialchars($cell['fldView']) ?>" download class="btn btn-primary" aria-label="Download bill <?= htmlspecialchars($cell['pmkBillID']) ?>">Download</a>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -229,25 +260,42 @@ $billsByYear = groupBillsByYear($billsForCurrentPage);
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
+    </div><!-- #bills-container -->
 
     <?php if ($totalPages > 1): ?>
-        <nav class="pagination">
-            <span class="pagination-summary-text">Page <?= $currentPage ?> of <?= $totalPages ?></span>
-            <ul class="pagination-links">
+        <nav class="pagination" role="navigation" aria-label="Pagination">
+            <div class="pagination-info">Page <?= $currentPage ?> of <?= $totalPages ?></div>
+            <div class="pagination-controls">
                 <?php if ($currentPage > 1): ?>
-                    <li><a href="?page=<?= $currentPage - 1 ?>">Previous</a></li>
+                    <a class="btn btn-outline" href="?page=<?= $currentPage - 1 ?>" aria-label="Previous page">« Prev</a>
+                <?php else: ?>
+                    <span class="btn btn-outline disabled" aria-hidden="true">« Prev</span>
                 <?php endif; ?>
 
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                    <li>
-                        <a href="?page=<?= $i ?>" class="<?= ($i == $currentPage) ? 'active' : '' ?>"><?= $i ?></a>
-                    </li>
+                <?php
+                    $start = max(1, $currentPage - 2);
+                    $end = min($totalPages, $currentPage + 2);
+                    if ($start > 1):
+                ?>
+                    <a class="page" href="?page=1">1</a>
+                    <?php if ($start > 2): ?><span class="pagination-ellipsis">…</span><?php endif; ?>
+                <?php endif; ?>
+
+                <?php for ($i = $start; $i <= $end; $i++): ?>
+                    <a class="page <?= $i == $currentPage ? 'active' : '' ?>" href="?page=<?= $i ?>" <?= $i == $currentPage ? 'aria-current="page"' : '' ?>><?= $i ?></a>
                 <?php endfor; ?>
 
-                <?php if ($currentPage < $totalPages): ?>
-                    <li><a href="?page=<?= $currentPage + 1 ?>">Next</a></li>
+                <?php if ($end < $totalPages): ?>
+                    <?php if ($end < $totalPages - 1): ?><span class="pagination-ellipsis">…</span><?php endif; ?>
+                    <a class="page" href="?page=<?= $totalPages ?>"><?= $totalPages ?></a>
                 <?php endif; ?>
-            </ul>
+
+                <?php if ($currentPage < $totalPages): ?>
+                    <a class="btn btn-outline" href="?page=<?= $currentPage + 1 ?>" aria-label="Next page">Next »</a>
+                <?php else: ?>
+                    <span class="btn btn-outline disabled" aria-hidden="true">Next »</span>
+                <?php endif; ?>
+            </div>
         </nav>
     <?php endif; ?>
 </main>

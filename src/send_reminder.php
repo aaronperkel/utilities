@@ -109,17 +109,19 @@ if (isset($_POST['sendReminder'])) {
                 $formattedDueDate = $billDueDate; // Fallback to YYYY-MM-DD string
             }
 
-            // Construct email body for each person.
-            $body = "<p style=\"font:14pt serif;\">Hello " . htmlspecialchars($personName) . ",</p>"
-                . "<p style=\"font:14pt serif;\">This is a reminder that your <strong>" . htmlspecialchars($billItem) . "</strong> bill (total: $" . number_format($billTotal, 2) . ") is due on " . htmlspecialchars($formattedDueDate) . ".</p>"
-                . "<p style=\"font:14pt serif;\">Your share is: $" . number_format($billCostPerPerson, 2) . ".</p>"
-                . "<p style=\"font:14pt serif;\">Please login to <a href=\"" . htmlspecialchars($portalLink) . "\">" . htmlspecialchars($appEmailFromName) . " Portal</a> for more info.</p>"
-                . "<p style=\"font:14pt serif;color:green;\">" . htmlspecialchars($appEmailFromName) . "<br>"
-                . "Contact: " . htmlspecialchars($appEmailFromAddress) . "</p>";
+            // Construct a modern, clean email body for each person (simple, mobile-friendly)
+            $bodyHeader = "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,\'Helvetica Neue\',Arial; color:#0f1724;\">";
+            $bodyMain = "<h2 style=\"margin:0 0 8px 0; font-size:18px; color:#111827;\">Reminder: " . htmlspecialchars($billItem) . "</h2>";
+            $bodyMain .= "<p style=\"margin:0 0 8px 0; color:#374151; font-size:14px;\">Hello " . htmlspecialchars($personName) . ",</p>";
+            $bodyMain .= "<p style=\"margin:0 0 8px 0; color:#374151; font-size:14px;\">This is a reminder that your <strong>" . htmlspecialchars($billItem) . "</strong> bill (total: $" . number_format($billTotal, 2) . ") is due on <strong>" . htmlspecialchars($formattedDueDate) . "</strong>. Your share: <strong>$" . number_format($billCostPerPerson, 2) . "</strong>.</p>";
+            $bodyMain .= "<p style=\"margin:0 0 12px 0;\"><a href=\"" . htmlspecialchars($portalLink) . "\" style=\"display:inline-block;padding:8px 12px;background:linear-gradient(90deg, #7C4DFF, #5B8DEF);color:#fff;border-radius:8px;text-decoration:none;\">View details</a></p>";
+            $bodyFooter = "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:12px 0;\"><p style=\"margin:0;color:#6b7280;font-size:13px;\">" . htmlspecialchars($appEmailFromName) . " — <a href=\"mailto:" . htmlspecialchars($appEmailFromAddress) . "\">" . htmlspecialchars($appEmailFromAddress) . "</a></p>";
+            $body = $bodyHeader . $bodyMain . $bodyFooter . "</div>";
 
             if ($is_dry_run_active) {
                 $dryRunActionMessage .= "DRY RUN: Reminder for bill '" . htmlspecialchars($billItem) . "' (Due: " . htmlspecialchars($billDueDate) . ") would have been sent to " . htmlspecialchars($personName) . " (" . htmlspecialchars($toEmailAddress) . "). Subject: " . $subject . "<br>";
             } else {
+                // Send individual personalized emails to each recipient
                 if (!mail($toEmailAddress, $subject, $body, $headers)) {
                     error_log("Mail to {$toEmailAddress} failed for bill ID {$billId}, item {$billItem}.");
                 } else {
@@ -134,29 +136,34 @@ if (isset($_POST['sendReminder'])) {
         if (!empty($owedPeopleNameList) && !empty($appConfirmationEmailTo)) {
             $confirmSubject = ($is_dry_run_active ? "[DRY RUN] " : "") . "Reminder Batch Processed: " . htmlspecialchars($billItem) . " due " . htmlspecialchars($billDueDate);
 
-            $processedListStr = "";
+            // Build a concise admin confirmation listing all processed recipients (only one email)
+            $processedListStr = '';
             if ($is_dry_run_active) {
-                // In dry run, list all people who would have been processed.
                 $tempDryRunRecipients = [];
-                foreach($owedPeopleNameList as $pName) {
-                    $tempDryRunRecipients[] = htmlspecialchars($pName) . (isset($emailMapArray[$pName]) ? " (&lt;" . htmlspecialchars($emailMapArray[$pName]) . "&gt;)" : " (No email in map)");
+                foreach ($owedPeopleNameList as $pName) {
+                    $tempDryRunRecipients[] = htmlspecialchars($pName) . (isset($emailMapArray[$pName]) ? " (&lt;" . htmlspecialchars($emailMapArray[$pName]) . "&gt;)" : " (No email)");
                 }
-                $processedListStr = empty($tempDryRunRecipients) ? 'None (no one found in tblBillOwes or email map issues)' : implode(', ', $tempDryRunRecipients);
+                $processedListStr = empty($tempDryRunRecipients) ? 'None (no recipients found)' : implode(', ', $tempDryRunRecipients);
             } else {
-                // In live mode, list who emails were actually sent to.
                 $processedListStr = empty($sentToForConfirmation) ? 'None (or all failed, check logs)' : implode(', ', $sentToForConfirmation);
             }
 
-            $confirmBody = "<p style=\"font:12pt monospace;\">Reminder emails were " . ($is_dry_run_active ? "simulated" : "processed") . " for the " . htmlspecialchars($billItem) . " bill (due " . htmlspecialchars($billDueDate) . ").</p>"
-                . "<hr>"
-                . "<p style=\"font:12pt monospace;\">Processed for: {$processedListStr}</p>"
-                . "<p style=\"font:12pt monospace;\">Original Subject: {$subject}</p>";
+            $confirmBody = "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#111827;\">"
+                . "<h3 style=\"margin:0 0 8px 0;\">" . ($is_dry_run_active ? '[DRY RUN] ' : '') . "Reminder Batch Report</h3>"
+                . "<p style=\"margin:6px 0 10px 0;color:#374151;\">Bill: <strong>" . htmlspecialchars($billItem) . "</strong> — Due: <strong>" . htmlspecialchars($billDueDate) . "</strong></p>"
+                . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><strong>Processed recipients:</strong></p>"
+                . "<p style=\"margin:0 0 8px 0;color:#374151;\">" . $processedListStr . "</p>"
+                . "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:12px 0;\">"
+                . "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Original Subject: " . htmlspecialchars($subject) . "</p>"
+                . "</div>";
 
             if ($is_dry_run_active) {
-                 $dryRunActionMessage .= "DRY RUN: Admin confirmation email (Subject: " . $confirmSubject . ") would have been sent to " . htmlspecialchars($appConfirmationEmailTo) . ".<br>";
+                $dryRunActionMessage .= "DRY RUN: Admin confirmation (would be sent to: " . htmlspecialchars($appConfirmationEmailTo) . ").<br>";
             } else {
-                if (!mail($appConfirmationEmailTo, $confirmSubject, $confirmBody, $headers)) {
-                     error_log("Admin confirmation mail for reminders (bill ID {$billId}) failed to send to {$appConfirmationEmailTo}.");
+                if (!empty($appConfirmationEmailTo) && filter_var($appConfirmationEmailTo, FILTER_VALIDATE_EMAIL)) {
+                    if (!mail($appConfirmationEmailTo, $confirmSubject, $confirmBody, $headers)) {
+                        error_log("Admin confirmation mail for reminders (bill ID {$billId}) failed to send to {$appConfirmationEmailTo}.");
+                    }
                 }
             }
         }

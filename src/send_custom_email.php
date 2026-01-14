@@ -64,15 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($paras as $p) {
             $cleanParagraph = htmlspecialchars($p, ENT_QUOTES, 'UTF-8');
             $cleanParagraphWithBreaks = nl2br($cleanParagraph); // Convert newlines to <br>
-            $htmlBody .= "<p style=\"font: 14pt serif;\">{$cleanParagraphWithBreaks}</p>\n";
+            $htmlBody .= "<p style=\"margin:0 0 12px 0;color:#374151;font-size:14px;line-height:1.4;\">{$cleanParagraphWithBreaks}</p>\n";
         }
 
-        // 3) Append a standard signature (using configured details).
-        // Note: The original signature with phone number is removed unless also made configurable.
-        $htmlBody .= "<p style=\"font: 14pt serif; margin-top: 20px;\">"
-            . "<span style=\"color: green;\">" . htmlspecialchars($appEmailFromName) . "</span><br>"
-            . "Contact: " . htmlspecialchars($appEmailFromAddress)
-            . "</p>";
+        // 3) Append a modern signature (using configured details).
+        $htmlBody .= "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:18px 0;\">";
+        $htmlBody .= "<p style=\"margin:0;color:#6b7280;font-size:13px;\">" . htmlspecialchars($appEmailFromName) . " — <a href=\"mailto:" . htmlspecialchars($appEmailFromAddress) . "\">" . htmlspecialchars($appEmailFromAddress) . "</a></p>";
 
         // 4) Prepare email headers using configured "From" address and name.
         $fromHeader = "From: " . htmlspecialchars($appEmailFromName) . " <" . htmlspecialchars($appEmailFromAddress) . ">";
@@ -111,12 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         error_log("Invalid email address for {$name}: {$toEmailAddress}. Skipping custom email.");
                         continue;
                     }
-                    if (!mail($toEmailAddress, $subject, $htmlBody, $headers)) {
-                        error_log("Custom email to {$toEmailAddress} (for {$name}) with subject '{$subject}' failed to send.");
-                        // Optionally add to $error_messages if critical for user feedback
-                    } else {
-                        $sentToForConfirmation[] = $name . " <" . $toEmailAddress . ">";
-                    }
+                        if (!mail($toEmailAddress, $subject, $htmlBody, $headers)) {
+                            error_log("Custom email to {$toEmailAddress} (for {$name}) with subject '{$subject}' failed to send.");
+                        } else {
+                            $sentToForConfirmation[] = htmlspecialchars($name) . " &lt;" . htmlspecialchars($toEmailAddress) . "&gt;";
+                        }
                 }
             } else {
                 error_log("APP_USER_EMAILS is empty or invalid. No custom emails sent.");
@@ -132,7 +128,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . "<p style=\"font:12pt monospace;\"><b>Attempted to send to:</b> {$sentListStr}</p>"
                     . "<hr><h3>Original Message Body (HTML):</h3>" . $htmlBody;
 
-                if (!mail($appConfirmationEmailTo, $confirmSubject, $confirmBody, $headers)) {
+                // Admin confirmation: single consolidated message with recipient list
+                $sentListStr = empty($sentToForConfirmation) ? 'None (or all failed, check logs)' : implode(', ', $sentToForConfirmation);
+                $confirmBodyNice = "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#111827;\">"
+                    . "<h3 style=\"margin:0 0 8px 0;\">Admin Confirmation: Custom Email Sent</h3>"
+                    . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><b>Subject:</b> " . htmlspecialchars($subject) . "</p>"
+                    . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><b>Sent to:</b> " . $sentListStr . "</p>"
+                    . "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:12px 0;\">"
+                    . "<h4 style=\"margin:0 0 8px 0;\">Message Preview</h4>" . $htmlBody
+                    . "</div>";
+                if (!mail($appConfirmationEmailTo, $confirmSubject, $confirmBodyNice, $headers)) {
                     error_log("Admin confirmation for custom email failed to send to {$appConfirmationEmailTo}.");
                 }
             }
@@ -202,7 +207,7 @@ $formBody = $_POST['body'] ?? '';
             <label for="body">Message</label>
             <textarea id="body" name="body" rows="6" required><?= htmlspecialchars($formBody) ?></textarea>
 
-            <button type="submit">Send Email</button>
+            <button type="submit" class="btn btn-primary" aria-label="Send custom email">Send Email</button>
         </form>
     </div>
 </main>

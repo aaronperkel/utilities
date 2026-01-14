@@ -12,7 +12,6 @@ $pathParts = pathinfo($phpSelf); // Get path info, $pathParts['filename'] will b
 // Establish database connection and load environment variables.
 // $pdo object becomes available globally in the scope of including scripts.
 // All .env variables are loaded into $_ENV.
-$_SERVER["REMOTE_USER"] = 'aperkel';
 include 'connect-DB.php';
 ?>
 <!DOCTYPE HTML>
@@ -47,10 +46,12 @@ include 'connect-DB.php';
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
 
     <script src="js/dropdown.js"></script>
+    <script src="js/app.js" defer></script>
 
 </head>
 <?php
 print '<body class="' . $pathParts['filename'] . '">';
 print '<!-- #################   Body element    ################# -->';
 include 'nav.php';
+print '<div class="site-container">';
 ?>

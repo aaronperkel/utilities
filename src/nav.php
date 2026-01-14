@@ -1,27 +1,18 @@
 <!-- src/nav.php -->
 <!-- Navigation bar for the site. Uses $pathParts from top.php to highlight the active page. -->
-<div class="navBox">
-    <header>
-        <h1>81 Buell Utilities</h1>
-    </header>
-    <nav>
-        <a class="<?php if ($pathParts['filename'] == 'index')
-            echo 'activePage'; ?>" href="./">Home</a>
-        <a class="<?php if ($pathParts['filename'] == 'trends')
-            echo 'activePage'; ?>" href="./trends.php">Trends</a>
+<header class="site-header card">
+    <div class="site-brand">
+        <h1>81 Buell</h1>
+        <p class="site-tag">Utilities Dashboard</p>
+    </div>
+    <nav class="main-nav" role="navigation" aria-label="Main navigation">
+        <a href="./" class="<?= ($pathParts['filename'] == 'index') ? 'activePage nav-link' : 'nav-link' ?>">Home</a>
+        <a href="./trends.php" class="<?= ($pathParts['filename'] == 'trends') ? 'activePage nav-link' : 'nav-link' ?>">Trends</a>
         <?php
-        // Conditionally display admin links.
-        // Note: This uses a hardcoded username check. For better maintainability and consistency,
-        // this should ideally use the isAdminUser() function and APP_ADMIN_USERS list from .env,
-        // similar to how portal.php handles admin access. However, that would require
-        // $appAdminUsersList to be available globally here (e.g., loaded in top.php after .env).
         if (($_SERVER['REMOTE_USER'] ?? '') === 'aperkel'):
-            ?>
-            <a class="<?php if ($pathParts['filename'] == 'portal')
-                echo 'activePage'; ?>" href="./portal.php">Admin
-                Portal</a>
-            <a class="<?php if ($pathParts['filename'] == 'send_custom_email')
-                echo 'activePage'; ?>" href="./send_custom_email.php">Send Email</a>
+        ?>
+            <a href="./portal.php" class="<?= ($pathParts['filename'] == 'portal') ? 'activePage nav-link' : 'nav-link' ?>">Admin Portal</a>
+            <a href="./send_custom_email.php" class="<?= ($pathParts['filename'] == 'send_custom_email') ? 'activePage nav-link' : 'nav-link' ?>">Send Email</a>
         <?php endif; ?>
     </nav>
-</div>
+</header>

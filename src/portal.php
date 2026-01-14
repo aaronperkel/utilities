@@ -564,56 +564,59 @@ $csrfTokenListForms = $_SESSION['csrf_token_list_forms'];
         </div>
     <?php endif; ?>
 
+    <div id="admin-bills-container">
     <div class="table-responsive">
         <table>
             <thead>
                 <tr>
-                    <th>Date Billed</th>
+                    <th>Date</th>
                     <th>Item</th>
-                    <th>Total</th>
-                    <th>Per Person</th>
-                    <th>Due Date</th>
-                    <th>Overall Status</th> <!-- Changed from "Status" -->
-                    <th>Payment Status per Person</th> <!-- New column -->
-                    <th>Actions</th> <!-- Actions like View/Download -->
+                    <th>Price</th>
+                    <th>Due</th>
+                    <th>Overall Status</th>
+                    <th>Payment Status</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($cells)): ?>
-                    <tr><td colspan="8">No bills found for this page.</td></tr> <!-- Adjusted colspan -->
+                    <tr><td colspan="7">No bills found for this page.</td></tr>
                 <?php else: ?>
                     <?php foreach ($cells as $c): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($c['fldDate']) ?></td>
-                            <td><?= htmlspecialchars($c['fldItem']) ?></td>
-                            <td>$<?= htmlspecialchars(number_format((float)$c['fldTotal'], 2)) ?></td>
-                            <td>$<?= htmlspecialchars(number_format((float)$c['fldCost'], 2)) ?></td>
-                            <td> <!-- Due Date & Reminder Button -->
-                                <?php if ($c['fldStatus'] !== 'Paid'): ?>
-                                    <form method="POST" action="send_reminder.php" style="margin:0; display:inline;">
-                                        <input type="hidden" name="csrf_token" value="<?= $csrfTokenListForms ?>">
-                                        <input type="hidden" name="sendReminder" value="1">
-                                        <input type="hidden" name="pmk" value="<?= htmlspecialchars((string)$c['pmkBillID']) ?>">
-                                        <button type="submit" class="badge badge-unpaid" title="Send Reminder for <?= htmlspecialchars($c['fldDue']) ?>">
-                                            <?= htmlspecialchars($c['fldDue']) ?>
-                                        </button>
-                                    </form>
-                            <?php else: ?>
-                                <span class="badge badge-paid" title="Bill is Paid"><?= htmlspecialchars($c['fldDue']) ?></span>
-                            <?php endif; ?>
+                        <?php
+                            $bDate = (new DateTime($c['fldDate']))->format('M j');
+                            $bYear = (new DateTime($c['fldDate']))->format('Y');
+                        ?>
+                        <tr class="bill-row" data-bill-id="<?= htmlspecialchars($c['pmkBillID']) ?>" data-due="<?= htmlspecialchars($c['fldDue']) ?>" data-status="<?= strtolower($c['fldStatus']) ?>">
+                            <td class="date-cell"><div class="date-main"><?= htmlspecialchars($bDate) ?></div><div class="date-year muted"><?= htmlspecialchars($bYear) ?></div></td>
+                            <td class="item-cell"><div class="item-name"><?= htmlspecialchars($c['fldItem']) ?></div></td>
+                            <td class="price-cell">
+                                <div class="price-main">$<?= htmlspecialchars(number_format((float)$c['fldTotal'], 2)) ?></div>
+                                <div class="price-sub">$<?= htmlspecialchars(number_format((float)$c['fldCost'], 2)) ?> / person</div>
                             </td>
-                            <td> <!-- Overall Bill Status -->
-                                <span class="badge <?= strtolower($c['fldStatus']) === 'paid' ? 'badge-paid' : 'badge-unpaid' ?>">
-                                    <?= htmlspecialchars($c['fldStatus']) ?>
-                                </span>
+                            <td class="due-cell">
+                                <div class="due-info">
+                                    <span class="due-chip" data-due="<?= htmlspecialchars($c['fldDue']) ?>" data-paid="<?= $c['fldStatus'] === 'Paid' ? '1' : '0' ?>"></span>
+                                    <?php if ($c['fldStatus'] !== 'Paid'): ?>
+                                        <form method="POST" action="send_reminder.php" class="reminder-form">
+                                            <input type="hidden" name="csrf_token" value="<?= $csrfTokenListForms ?>">
+                                            <input type="hidden" name="sendReminder" value="1">
+                                            <input type="hidden" name="pmk" value="<?= htmlspecialchars((string)$c['pmkBillID']) ?>">
+                                            <button type="submit" class="btn-icon" title="Send reminder">📧</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
                             </td>
-                            <td class="payment-cell"> <!-- Per-person payment status form -->
-                                <form method="POST" action="update_owe.php" style="display:inline">
+                            <td class="status-cell">
+                                <span class="badge <?= strtolower($c['fldStatus']) === 'paid' ? 'badge-paid' : 'badge-unpaid' ?>"><?= htmlspecialchars($c['fldStatus']) ?></span>
+                            </td>
+                            <td class="payment-cell">
+                                <form method="POST" action="update_owe.php" class="payment-form payment-form-auto" data-bill-id="<?= $c['pmkBillID'] ?>">
                                     <input type="hidden" name="billID" value="<?= $c['pmkBillID'] ?>">
                                     <input type="hidden" name="csrf_token" value="<?= $csrfTokenListForms ?>">
+                                    <div class="checkbox-grid">
                                     <?php
-                                    if (!empty($allPeople)) { // Ensure $allPeople is available
-                                        // Fetch personIDs who currently owe for this specific bill
+                                    if (!empty($allPeople)) {
                                         $owesStmt = $pdo->prepare("SELECT personID FROM tblBillOwes WHERE billID = :billID");
                                         $owesStmt->execute([':billID' => $c['pmkBillID']]);
                                         $peopleOwingThisBillIDs = $owesStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -621,109 +624,138 @@ $csrfTokenListForms = $_SESSION['csrf_token_list_forms'];
                                         foreach ($allPeople as $person):
                                             $hasEffectivelyPaid = ($c['fldStatus'] === 'Paid') || !in_array($person['personID'], $peopleOwingThisBillIDs);
                                     ?>
-                                        <div class="checkbox-container">
-                                            <label>
+                                            <label class="checkbox-inline">
                                                 <input type="checkbox" name="paidPersonIDs[]" value="<?= $person['personID'] ?>" <?= $hasEffectivelyPaid ? 'checked' : '' ?>>
-                                                <?= htmlspecialchars($person['personName']) ?>
+                                                <span><?= htmlspecialchars($person['personName']) ?></span>
                                             </label>
-                                        </div>
                                     <?php
                                         endforeach;
-                                    } else { // Fallback if $allPeople isn't loaded
-                                        echo "User list unavailable.";
+                                    } else {
+                                        echo "N/A";
                                     }
                                     ?>
-                                    <button type="submit">Update Payments</button>
+                                    </div>
                                 </form>
                             </td>
-                            <td> <!-- View/Download Links -->
-                            <a href="<?= htmlspecialchars("{$c['fldView']}") ?>" target="_blank"
-                                class="icon-link">View</a>
-                            |
-                            <a href="<?= htmlspecialchars("{$c['fldView']}") ?>" download
-                                class="icon-link">Download</a>
-                        </td>
-                    </tr>
+                            <td class="actions-cell">
+                                <div class="action-btns">
+                                    <a href="<?= htmlspecialchars("{$c['fldView']}") ?>" target="_blank" class="btn btn-outline" aria-label="View bill <?= htmlspecialchars($c['pmkBillID']) ?>">View</a>
+                                    <a href="<?= htmlspecialchars("{$c['fldView']}") ?>" download class="btn btn-primary" aria-label="Download bill <?= htmlspecialchars($c['pmkBillID']) ?>">Download</a>
+                                </div>
+                            </td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
+    </div><!-- #admin-bills-container -->
 
     <?php if ($totalPages > 1): ?>
-        <nav class="pagination">
-            <span class="pagination-summary-text">Page <?= $currentPage ?> of <?= $totalPages ?></span>
-            <ul class="pagination-links">
+        <nav class="pagination" role="navigation" aria-label="Pagination">
+            <div class="pagination-info">Page <?= $currentPage ?> of <?= $totalPages ?></div>
+            <div class="pagination-controls">
                 <?php if ($currentPage > 1): ?>
-                    <li><a href="?page=<?= $currentPage - 1 ?>">Previous</a></li>
+                    <a class="btn btn-outline" href="?page=<?= $currentPage - 1 ?>" aria-label="Previous page">« Prev</a>
+                <?php else: ?>
+                    <span class="btn btn-outline disabled" aria-hidden="true">« Prev</span>
                 <?php endif; ?>
 
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                    <li>
-                        <a href="?page=<?= $i ?>" class="<?= ($i == $currentPage) ? 'active' : '' ?>"><?= $i ?></a>
-                    </li>
+                <?php
+                    $start = max(1, $currentPage - 2);
+                    $end = min($totalPages, $currentPage + 2);
+                    if ($start > 1):
+                ?>
+                    <a class="page" href="?page=1">1</a>
+                    <?php if ($start > 2): ?><span class="pagination-ellipsis">…</span><?php endif; ?>
+                <?php endif; ?>
+
+                <?php for ($i = $start; $i <= $end; $i++): ?>
+                    <a class="page <?= $i == $currentPage ? 'active' : '' ?>" href="?page=<?= $i ?>" <?= $i == $currentPage ? 'aria-current="page"' : '' ?>><?= $i ?></a>
                 <?php endfor; ?>
 
-                <?php if ($currentPage < $totalPages): ?>
-                    <li><a href="?page=<?= $currentPage + 1 ?>">Next</a></li>
+                <?php if ($end < $totalPages): ?>
+                    <?php if ($end < $totalPages - 1): ?><span class="pagination-ellipsis">…</span><?php endif; ?>
+                    <a class="page" href="?page=<?= $totalPages ?>"><?= $totalPages ?></a>
                 <?php endif; ?>
-            </ul>
+
+                <?php if ($currentPage < $totalPages): ?>
+                    <a class="btn btn-outline" href="?page=<?= $currentPage + 1 ?>" aria-label="Next page">Next »</a>
+                <?php else: ?>
+                    <span class="btn btn-outline disabled" aria-hidden="true">Next »</span>
+                <?php endif; ?>
+            </div>
         </nav>
     <?php endif; ?>
 
     <h2 class="section-title">Add New Bill</h2>
-    <div class="form-panel admin-area">
+    <div class="form-panel add-bill-form">
         <form method="POST" action="portal.php" enctype="multipart/form-data">
             <?php
             // Generate and store CSRF token for the main form
-            if (empty($_SESSION['csrf_token_main_form'])) { // Use a unique name for this form's token
+            if (empty($_SESSION['csrf_token_main_form'])) {
                 $_SESSION['csrf_token_main_form'] = bin2hex(random_bytes(32));
             }
             $csrfTokenMainForm = $_SESSION['csrf_token_main_form'];
             ?>
             <input type="hidden" name="csrf_token" value="<?= $csrfTokenMainForm ?>">
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="date">Date</label>
-                    <input type="date" id="date" name="date" required>
+            <fieldset class="form-fieldset">
+                <legend>📅 Dates</legend>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="date">Bill Date</label>
+                        <input type="date" id="date" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="due">Due Date</label>
+                        <input type="date" id="due" name="due" required>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="due">Due Date</label>
-                    <input type="date" id="due" name="due" required>
-                </div>
-            </div>
+            </fieldset>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="item">Item</label>
-                    <select id="item" name="item" required>
-                        <option>Gas</option>
-                        <option>Electric</option>
-                        <option>Internet</option>
-                    </select>
+            <fieldset class="form-fieldset">
+                <legend>💰 Bill Details</legend>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="item">Type</label>
+                        <select id="item" name="item" required>
+                            <option value="" disabled selected>Select...</option>
+                            <option value="Gas">🔥 Gas</option>
+                            <option value="Electric">⚡ Electric</option>
+                            <option value="Internet">🌐 Internet</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="total">Total Amount</label>
+                        <div class="input-prefix">
+                            <span class="prefix">$</span>
+                            <input type="number" id="total" name="total" oninput="updateField()" step="0.01" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="cost">Per Person</label>
+                        <div class="input-prefix">
+                            <span class="prefix">$</span>
+                            <input type="number" id="cost" name="cost" readonly step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="total">Total</label>
-                    <input type="number" id="total" name="total" oninput="updateField()" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="cost">Per Person</label>
-                    <input type="number" id="cost" name="cost" readonly step="0.01">
-                </div>
-            </div>
+            </fieldset>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="view">PDF Upload</label>
-                    <input type="file" id="view" name="view" accept="application/pdf" required>
+            <fieldset class="form-fieldset">
+                <legend>📄 Attachment</legend>
+                <div class="form-row">
+                    <div class="form-group form-group-full">
+                        <label for="view">PDF Statement</label>
+                        <input type="file" id="view" name="view" accept="application/pdf" required>
+                        <small class="form-hint">Upload the bill PDF (max 5MB)</small>
+                    </div>
                 </div>
-            </div>
+            </fieldset>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <button type="submit">Submit New Bill</button>
-                </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-lg" aria-label="Submit new bill">✅ Submit New Bill</button>
             </div>
         </form>
     </div>
