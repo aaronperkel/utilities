@@ -1,2 +1,8 @@
+# .env lives on disk next to index.php; PHP reads it via the filesystem. These rules
+# stop Apache from serving it as a normal URL (same idea as protecting includes/).
+<FilesMatch "^\.env">
+    Require all denied
+</FilesMatch>
+
 AuthType CAS
 Require ldap-filter |(uid=aperkel)(uid=oacook)(uid=bquacken)
