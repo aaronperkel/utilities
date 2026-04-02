@@ -217,20 +217,16 @@ function sendBillNotifications(array $billDetails, string $dbPath, array $config
 
     // Construct absolute link to the bill PDF.
     $billViewLink = $config['baseUrl'] . "/" . htmlspecialchars($dbPath); // Prepend base URL.
+    $portalLink = $config['baseUrl'] . "/index.php";
 
-    // Compose email body (HTML).
-    $body = "<p style=\"font:14pt serif;\">Hello,</p>"
-        . "<p style=\"font:14pt serif;\">"
-        . "A new <strong>" . htmlspecialchars($billDetails['item']) . "</strong> bill was posted (billed on " . htmlspecialchars($billDetails['billDate']) . "), due " . htmlspecialchars($billDetails['dueDate']) . "."
-        . "</p><ul style=\"font:14pt serif;\">"
-        . "<li>Total: $" . number_format($billDetails['total'], 2) . "</li>" // Format currency.
-        . "<li>Per person: $" . number_format($billDetails['cost'], 2) . "</li>"
-        . "</ul>"
-        . "<p style=\"font:14pt serif;\">"
-        . "View/download it at <a href=\"" . $billViewLink . "\">the portal</a>." // Use absolute link.
-        . "</p>"
-        . "<p style=\"font:14pt serif;color:green;\">" . htmlspecialchars($config['emailFromName']) . "<br>" // Email signature.
-        . "Contact: " . htmlspecialchars($config['emailFromAddress']) . "</p>";
+    // Format due date for email body
+    $formattedDueDate = $billDetails['dueDate'];
+    try {
+        $dateObjForBody = new DateTime($billDetails['dueDate']);
+        $formattedDueDate = $dateObjForBody->format("F j, Y"); // e.g., "July 15, 2024"
+    } catch (Exception $e) {
+        // Fallback to raw date string
+    }
 
     $emailedRecipientsForConfirmation = []; // Track who was emailed for admin confirmation.
     // Send email to each user who is configured to receive notifications
@@ -246,6 +242,18 @@ function sendBillNotifications(array $billDetails, string $dbPath, array $config
             $personName = $person['personName'];
             if (isset($config['emailMap'][$personName])) {
                 $toEmail = $config['emailMap'][$personName];
+
+                // Compose personalized email body (modern, clean HTML style matching reminders)
+                $bodyHeader = "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial; color:#0f1724;\">";
+                $bodyMain = "<h2 style=\"margin:0 0 8px 0; font-size:18px; color:#111827;\">New Bill: " . htmlspecialchars($billDetails['item']) . "</h2>";
+                $bodyMain .= "<p style=\"margin:0 0 8px 0; color:#374151; font-size:14px;\">Hello " . htmlspecialchars($personName) . ",</p>";
+                $bodyMain .= "<p style=\"margin:0 0 8px 0; color:#374151; font-size:14px;\">A new <strong>" . htmlspecialchars($billDetails['item']) . "</strong> bill has been posted.</p>";
+                $bodyMain .= "<p style=\"margin:0 0 8px 0; color:#374151; font-size:14px;\"><strong>Total:</strong> $" . number_format($billDetails['total'], 2) . " &nbsp;|&nbsp; <strong>Your share:</strong> $" . number_format($billDetails['cost'], 2) . "</p>";
+                $bodyMain .= "<p style=\"margin:0 0 12px 0; color:#374151; font-size:14px;\"><strong>Due:</strong> " . htmlspecialchars($formattedDueDate) . "</p>";
+                $bodyMain .= "<p style=\"margin:0 0 12px 0;\"><a href=\"" . htmlspecialchars($billViewLink) . "\" style=\"display:inline-block;padding:8px 12px;background:linear-gradient(90deg, #7C4DFF, #5B8DEF);color:#fff;border-radius:8px;text-decoration:none;margin-right:8px;\">View Bill PDF</a> <a href=\"" . htmlspecialchars($portalLink) . "\" style=\"display:inline-block;padding:8px 12px;background:#e5e7eb;color:#374151;border-radius:8px;text-decoration:none;\">Go to Portal</a></p>";
+                $bodyFooter = "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:12px 0;\"><p style=\"margin:0;color:#6b7280;font-size:13px;\">" . htmlspecialchars($config['emailFromName']) . " — <a href=\"mailto:" . htmlspecialchars($config['emailFromAddress']) . "\">" . htmlspecialchars($config['emailFromAddress']) . "</a></p>";
+                $body = $bodyHeader . $bodyMain . $bodyFooter . "</div>";
+
                 if (!mail($toEmail, $subject, $body, $headers)) {
                     error_log("Mail to $toEmail failed for person $personName regarding bill item " . $billDetails['item']);
                 } else {
@@ -262,11 +270,18 @@ function sendBillNotifications(array $billDetails, string $dbPath, array $config
     // Send a confirmation email to the admin.
     if (!empty($config['confirmationEmailTo'])) {
         $confSubject = 'Admin Confirmation: New Bill Posted - ' . htmlspecialchars($billDetails['item']);
-        $confBody = "<p style=\"font:12pt monospace;\">A new bill was posted using the portal.</p>"
-            . "<p style=\"font:12pt monospace;\">Item: " . htmlspecialchars($billDetails['item']) . "</p>"
-            . "<p style=\"font:12pt monospace;\">Total: $" . number_format($billDetails['total'], 2) . "</p>"
-            . "<p style=\"font:12pt monospace;\">Emailed to: " . htmlspecialchars(implode(', ', array_values($emailedRecipientsForConfirmation))) . "</p>"
-            . "<hr><p style=\"font:12pt monospace;\">Original Subject: {$subject}</p>";
+        $sentListStr = empty($emailedRecipientsForConfirmation)
+            ? 'None (or all failed, check logs)'
+            : implode(', ', array_map(fn($name, $email) => htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;", array_keys($emailedRecipientsForConfirmation), array_values($emailedRecipientsForConfirmation)));
+
+        $confBody = "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#111827;\">"
+            . "<h3 style=\"margin:0 0 8px 0;\">Admin Confirmation: New Bill Posted</h3>"
+            . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><strong>Item:</strong> " . htmlspecialchars($billDetails['item']) . " &nbsp;|&nbsp; <strong>Total:</strong> $" . number_format($billDetails['total'], 2) . "</p>"
+            . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><strong>Due:</strong> " . htmlspecialchars($formattedDueDate) . "</p>"
+            . "<p style=\"margin:6px 0 10px 0;color:#374151;\"><strong>Sent to:</strong> " . $sentListStr . "</p>"
+            . "<hr style=\"border:none;border-top:1px solid #eef2ff;margin:12px 0;\">"
+            . "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Original Subject: " . htmlspecialchars($subject) . "</p>"
+            . "</div>";
         if (!mail($config['confirmationEmailTo'], $confSubject, $confBody, $headers)) { // Send using same headers.
             error_log("Admin confirmation mail to {$config['confirmationEmailTo']} failed for bill item " . $billDetails['item']);
         }
