@@ -4,7 +4,7 @@
 
 session_start(); // Start session for CSRF token management and flash messages.
 
-include 'top.php'; // Includes header, navigation, and database connection (connect-DB.php).
+require_once dirname(__DIR__) . '/includes/top.php';
 
 // --- Configuration Loading ---
 // Load application configuration from environment variables (loaded by connect-DB.php via Dotenv).
@@ -26,7 +26,7 @@ if (json_last_error() !== JSON_ERROR_NONE) { // Check for JSON decoding errors.
 $appEmailFromAddress = $_ENV['APP_EMAIL_FROM_ADDRESS'] ?? 'utilities@example.com'; // Email address for sending notifications.
 $appEmailFromName = $_ENV['APP_EMAIL_FROM_NAME'] ?? '81 Buell Utilities'; // Sender name for emails.
 $appConfirmationEmailTo = $_ENV['APP_CONFIRMATION_EMAIL_TO'] ?? 'admin@example.com'; // Admin email for confirmation messages.
-$uploadBaseDir = __DIR__ . '/public/'; // Base directory for file uploads.
+$uploadBaseDir = utilitiesPublicRoot() . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR;
 
 // Allowed items for the bill item dropdown.
 $allowedBillItems = ['Gas', 'Electric', 'Internet'];
@@ -435,7 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             error_log("No people found in \$allPeople to populate tblBillOwes for new bill ID: $newBillId");
                         }
 
-                        include 'update_ics.php'; // Rebuild calendar.
+                        require_once dirname(__DIR__) . '/includes/update_ics.php'; // Rebuild calendar.
 
                         $peopleForNotification = [];
                         if (!empty($allPeople)) {
@@ -776,4 +776,4 @@ $csrfTokenListForms = $_SESSION['csrf_token_list_forms'];
     </div>
 </main>
 
-<?php include 'footer.php'; ?>
+<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

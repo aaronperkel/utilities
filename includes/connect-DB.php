@@ -1,14 +1,50 @@
-<!-- Connecting -->
 <?php
 // connect-DB.php
 // Establishes a database connection using PDO and loads environment variables.
 
-// Require the Composer autoloader to load vendor libraries (e.g., phpdotenv).
-require __DIR__ . '/./vendor/autoload.php';
+if (!defined('UTILITIES_ROOT')) {
+    define('UTILITIES_ROOT', dirname(__DIR__));
+}
 
-// Initialize phpdotenv to load variables from the .env file located in the project root.
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
-$dotenv->load(); // All .env variables are now available via $_ENV or getenv().
+// Composer vendor lives at the project root (same level as web/ and includes/).
+require UTILITIES_ROOT . '/vendor/autoload.php';
+
+// Load .env from the project root.
+$dotenv = Dotenv\Dotenv::createImmutable(UTILITIES_ROOT);
+$dotenv->load();
+
+// Local dev: PHP's built-in server and/or APP_ENV=local do not set REMOTE_USER (no CAS).
+$appEnv = strtolower($_ENV['APP_ENV'] ?? '');
+$isLocalDev = PHP_SAPI === 'cli-server' || $appEnv === 'local';
+if ($isLocalDev && empty($_SERVER['REMOTE_USER'])) {
+    $_SERVER['REMOTE_USER'] = $_ENV['DEV_REMOTE_USER'] ?? 'aperkel';
+}
+
+/**
+ * Filesystem path to the web document root (the directory the server exposes as the site).
+ * Used for cal.ics and must match where your PHP entry points and static files live.
+ *
+ * APP_WEB_ROOT in .env:
+ * - Empty / unset: defaults to UTILITIES_ROOT/web (this repo’s local layout).
+ * - Absolute path (e.g. /var/www/utilities/www-root): use on the server.
+ * - Relative path (e.g. www-root): resolved against the project root (UTILITIES_ROOT).
+ *
+ * Composer vendor stays at UTILITIES_ROOT/vendor — outside this directory — on both local and server.
+ */
+if (!function_exists('utilitiesPublicRoot')) {
+    function utilitiesPublicRoot(): string
+    {
+        $configured = $_ENV['APP_WEB_ROOT'] ?? '';
+        $configured = is_string($configured) ? trim($configured) : '';
+        if ($configured === '') {
+            return UTILITIES_ROOT . DIRECTORY_SEPARATOR . 'web';
+        }
+        if (preg_match('#^([\\\\/]|[a-zA-Z]:[\\\\/])#', $configured)) {
+            return rtrim($configured, '/\\');
+        }
+        return UTILITIES_ROOT . DIRECTORY_SEPARATOR . trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $configured), DIRECTORY_SEPARATOR);
+    }
+}
 
 // Retrieve database connection details from environment variables.
 // Uses null coalescing operator (??) for defaults, though critical ones are checked below.
@@ -42,7 +78,7 @@ if ($dbUseSsl) {
         // Here, we construct path relative to project root if DB_SSL_CA_PATH is not absolute.
         $caPathToCheck = $dbSslCaPath;
         if (!preg_match('/^([\/]|[a-zA-Z]:)/', $dbSslCaPath)) { // Simple check if not absolute (Unix/Windows)
-            $caPathToCheck = __DIR__ . '/../' . $dbSslCaPath; // Assume relative to project root
+            $caPathToCheck = UTILITIES_ROOT . '/' . ltrim($dbSslCaPath, '/');
         }
 
         if (is_readable($caPathToCheck)) {

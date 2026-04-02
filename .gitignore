@@ -8,12 +8,16 @@ vendor/
 # Ignore environment configuration files (contains sensitive data)
 .env
 
-# ignore all PDFs under public
-src/public/**/*.pdf
+# Uploaded bill PDFs (keep repo clean)
+web/public/**/*.pdf
 
 # Ignore Python cache and compiled files
 scripts/__pycache__/
 scripts/*.pyc
+**/__pycache__/
+
+# Generated calendar (optional; remove if you prefer to commit it)
+web/cal.ics
 
 # Ignore log files (if any)
 *.log

@@ -2,7 +2,7 @@
 // send_reminder.php - send email reminders via PHP mail()
 session_start(); // Start session for CSRF token access
 
-include './connect-DB.php';
+require_once dirname(__DIR__) . '/includes/connect-DB.php';
 
 // Enable error reporting for debugging
 ini_set('display_errors', 1);

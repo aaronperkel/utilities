@@ -4,7 +4,7 @@
 // Works with the normalized schema: tblPeople, tblBillOwes, tblUtilities.
 
 session_start(); // Start session for CSRF token access and potential flash messages.
-include './connect-DB.php'; // Includes $pdo, and helper functions like isDryRunActive().
+require_once dirname(__DIR__) . '/includes/connect-DB.php';
 
 $is_dry_run_active = isDryRunActive(); // Check dry-run status. This re-uses the function from connect-DB.
 $allPeople = []; // Initialize $allPeople
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
 
             if ($statusActuallyChanged) {
-                include 'update_ics.php';
+                require_once dirname(__DIR__) . '/includes/update_ics.php';
             }
             $_SESSION['success_message'] = "Payment statuses for bill ID {$billID} updated. Overall status: {$newOverallStatus}.";
 

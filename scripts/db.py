@@ -6,13 +6,8 @@ from dotenv import load_dotenv
 import smtplib
 import time
 import os
-import json # For parsing JSON string from env
-import socket # For catching socket errors during SMTP operations
-import datetime # Imported for type hinting and date operations
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from email.mime.text import MIMEText
-from dotenv import load_dotenv
+import json
+import socket
 
 # db.py
 # This script checks for unpaid utility bills and sends email reminders.
@@ -24,8 +19,8 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 # Attempt to load .env file from common locations relative to the script.
 # This allows flexibility in where the .env file is placed (e.g., project root).
 dotenv_paths = [
-    os.path.join(script_dir, '..', '..', '.env'), # Root from src/scripts/
-    os.path.join(script_dir, '.env'),             # Current directory
+    os.path.join(script_dir, '..', '.env'),  # Project root (next to scripts/)
+    os.path.join(script_dir, '.env'),
 ]
 # Get custom path from environment variable if set
 custom_dotenv_path = os.getenv('PYTHON_DOTENV_PATH')
@@ -56,7 +51,7 @@ PYTHON_SENDER_EMAIL = os.getenv('PYTHON_SENDER_EMAIL')
 PYTHON_CONFIRMATION_EMAIL_TO = os.getenv('PYTHON_CONFIRMATION_EMAIL_TO')
 
 # Default DB_SSL_CA_PATH construction
-default_ca_path = os.path.join(script_dir, '..', '..', 'webdb-cacert.pem') # Default path relative to project root
+default_ca_path = os.path.join(script_dir, '..', 'webdb-cacert.pem')
 DB_SSL_CA_PATH = os.getenv('DB_SSL_CA_PATH', default_ca_path)
 # Read DB_USE_SSL, defaulting to 'false' if not set, then convert to boolean.
 raw_db_use_ssl = os.getenv('DB_USE_SSL', 'false')

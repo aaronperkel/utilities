@@ -26,6 +26,44 @@ The application has recently undergone significant refactoring for improved secu
 
 ---
 
+## Project layout
+
+| Path | Purpose |
+|------|---------|
+| `web/` | **Default document root** — public PHP entry points (`index.php`, `portal.php`, …), `css/`, `js/`, `previews/`, and `public/` (static assets + uploaded bill PDFs under `public/YYYY/Item/`). On your host, this folder may be named something else (e.g. `www-root`); set **`APP_WEB_ROOT`** in `.env` to that path so `cal.ics` and the app agree. |
+| `includes/` | Shared PHP: database bootstrap (`connect-DB.php`), layout (`top.php`, `nav.php`, `footer.php`), and `update_ics.php`. |
+| `scripts/` | `db.py` cron job for email reminders. |
+| `.env` | Configuration at the **repository root** (not inside `web/`). |
+
+**Vendor vs public:** Run `composer install` at the **project root** so `vendor/` sits next to `includes/`, not inside the public folder. Point Apache’s `DocumentRoot` only at the public directory (`web/` in the repo, or `www-root/` on your server). PHP loads Composer from `UTILITIES_ROOT/vendor` automatically.
+
+**`APP_WEB_ROOT`:** Optional. If unset, the app assumes the public directory is `web/` under the project root (good for `composer serve`). On the server, set `APP_WEB_ROOT` to your real public path, e.g. `www-root` (relative to the project root) or `/var/www/.../www-root`, so generated files like `cal.ics` are written where the web server can serve them.
+
+---
+
+## Run the app locally
+
+You need PHP 8.x, Composer, a `.env` with database credentials, and a reachable MySQL database (local or remote).
+
+1. From the project root: `composer install`
+2. Copy `.env.example` to `.env` and set `DB_*` (and other variables as needed).
+3. For the built-in server, set **`DEV_REMOTE_USER`** in `.env` to a login that matches `APP_UID_TO_NAME_MAPPING` / `APP_ADMIN_USERS` (e.g. `aperkel`), because there is no CAS locally.
+4. Start the server:
+
+```bash
+composer serve
+```
+
+Equivalent manual command:
+
+```bash
+php -S localhost:8080 -t web
+```
+
+Then open `http://localhost:8080/` (and `http://localhost:8080/portal.php` for the admin UI if that user is an admin). Email sending and uploads behave like production; use dry-run settings in `.env` if you want to avoid real side effects.
+
+---
+
 ## Setup Instructions
 
 ### 1. Clone the Repository
@@ -78,31 +116,34 @@ Create a .env file in the project root by copying and modifying .env.example. Th
 - Testing/Dry-Run Mode:
   - APP_DRY_RUN_ENABLED: Set to true to enable dry-run mode.
   - APP_DRY_RUN_ADMIN_ONLY: If true, dry-run is only active for admins.
+- Local testing (PHP built-in server):
+  - DEV_REMOTE_USER: Login to simulate when `REMOTE_USER` is unset (uncomment in `.env.example`).
+  - APP_ENV=local: Same simulation if you are not using `php -S` but still lack `REMOTE_USER`.
 
 Note: Ensure the .env file is secured and not publicly accessible. Refer to .env.example for the complete list and detailed comments for all variables.
 
 ### 5. Initialize the Database
 
-Create your MySQL database (e.g., APERKEL_utilities). Then, use the table schemas provided in [src/sql.php](src/sql.php) to set up your tables:
+Create your MySQL database (e.g., APERKEL_utilities). Then, use the table schemas provided in [web/sql.php](web/sql.php) to set up your tables:
 
 - tblPeople: Stores user information (personID, personName).
 - tblUtilities: Stores bill details (e.g., pmkBillID, fldDate, fldItem, fldTotal, fldCost, fldDue, fldStatus, fldView). The old fldOwe column has been removed.
 - tblBillOwes: A linking table (billID, personID) that tracks which person owes for which bill, replacing fldOwe.
-Refer to [src/sql.php](src/sql.php) for the exact CREATE TABLE statements, example INSERT commands, guidance on migrating from the older schema (if applicable), and example queries for the new structure.
+Refer to [web/sql.php](web/sql.php) for the exact CREATE TABLE statements, example INSERT commands, guidance on migrating from the older schema (if applicable), and example queries for the new structure.
 
 ### 6. Set Up Cron for Automation (Automated Reminders)
 
-The Python script [src/scripts/db.py](src/scripts/db.py) sends automated email reminders. Set up a cron job (or equivalent scheduled task) to run this script daily.
+The Python script [scripts/db.py](scripts/db.py) sends automated email reminders. Set up a cron job (or equivalent scheduled task) to run this script daily.
 
 ## Example cron entry:
 
 ```cron
-0 10 * * * /usr/bin/python3 /path/to/your/utility-manager/src/scripts/db.py
+0 10 * * * /usr/bin/python3 /path/to/your/utility-manager/scripts/db.py
 ```
-- Adjust the schedule (0 10 * * * means 10:00 AM daily) as needed.
-- Important: Replace /usr/bin/python3 with the absolute path to the Python interpreter where you installed the dependencies (e.g., the path within your virtual environment).
-- Important: Replace /path/to/your/utility-manager/src/scripts/db.py with the correct absolute path to the db.py script on your server.
-- The script relies on the .env file being in the project root (two levels above the scripts directory by default) or on a custom path specified by the PYTHON_DOTENV_PATH environment variable.
+- Adjust the schedule (`0 10 * * *` means 10:00 AM daily) as needed.
+- Replace `/usr/bin/python3` with the absolute path to the Python interpreter where you installed the dependencies (for example inside a virtual environment).
+- Replace `/path/to/your/utility-manager/scripts/db.py` with the real path to `db.py` on the server.
+- The script loads `.env` from the **project root** (parent of `scripts/`) unless you set `PYTHON_DOTENV_PATH`.
 
 ## Usage
 
@@ -118,7 +159,7 @@ The Python script [src/scripts/db.py](src/scripts/db.py) sends automated email r
 
 - Security: Several security enhancements like CSRF protection (on most forms) and improved input validation have been implemented. However, ongoing vigilance and adherence to security best practices are crucial. send_custom_email.php has a TODO note for CSRF protection.
 - Error Handling: The application includes improved error display mechanisms. For production environments, consider implementing more robust server-side logging (e.g., using Monolog for PHP, Python's logging module).
-- Database Schema: The database structure has been normalized (introducing tblPeople and tblBillOwes) for better data integrity and flexibility. See [src/sql.php](src/sql.php) for details.
+- Database Schema: The database structure has been normalized (introducing tblPeople and tblBillOwes) for better data integrity and flexibility. See [web/sql.php](web/sql.php) for details.
 
 ## License
 

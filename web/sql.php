@@ -1,5 +1,5 @@
 <?php
-include 'top.php';
+require_once dirname(__DIR__) . '/includes/top.php';
 ?>
 <main>
     <h1>Database Schema and SQL Information</h1>
@@ -198,4 +198,4 @@ ORDER BY u.fldDue DESC;
     </section>
 
 </main>
-<?php include 'footer.php' ?>
+<?php require_once dirname(__DIR__) . '/includes/footer.php' ?>

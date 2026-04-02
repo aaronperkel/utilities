@@ -3,7 +3,7 @@
 // Public-facing page to display utility bills and the amount owed by the current user.
 // Features pagination for browsing bills.
 
-include 'top.php'; // Includes header, navigation, and database connection (connect-DB.php).
+require_once dirname(__DIR__) . '/includes/top.php'; // Header, nav, DB (connect-DB.php).
 // .env variables are also loaded via connect-DB.php.
 
 // --- Function Definitions ---
@@ -300,4 +300,4 @@ $billsByYear = groupBillsByYear($billsForCurrentPage);
     <?php endif; ?>
 </main>
 
-<?php include 'footer.php'; ?>
+<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

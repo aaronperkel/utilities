@@ -32,11 +32,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
 $ics .= "END:VCALENDAR{$EOL}"; // End iCalendar object.
 
-// Define the path to save the .ics file.
-// This path is relative to this script's location (src/).
-// It assumes 'www-root' is a sibling directory to 'src'.
-// A more robust solution might use a configurable absolute path from .env.
-$icsFilePath = __DIR__ . '/../www-root/cal.ics';
+// Same directory Apache (or php -S) uses as document root; see APP_WEB_ROOT in .env.
+$icsFilePath = utilitiesPublicRoot() . DIRECTORY_SEPARATOR . 'cal.ics';
 
 // Check if dry-run mode is active. The function isDryRunActive() is defined in connect-DB.php.
 // The function_exists check is a safeguard.

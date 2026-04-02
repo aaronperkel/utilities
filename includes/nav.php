@@ -1,4 +1,4 @@
-<!-- src/nav.php -->
+<!-- nav.php -->
 <!-- Navigation bar for the site. Uses $pathParts from top.php to highlight the active page. -->
 <header class="site-header card">
     <div class="site-brand">

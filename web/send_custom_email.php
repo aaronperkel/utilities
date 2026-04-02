@@ -4,7 +4,7 @@
 // Note: This script currently lacks CSRF protection for the form submission.
 
 session_start(); // Start session to potentially use for CSRF tokens or admin checks if refactored.
-include 'top.php'; // Includes header, nav, and DB connection (which loads .env variables).
+require_once dirname(__DIR__) . '/includes/top.php';
 
 // --- Admin Access Check ---
 // Uses isAdminUser function (defined in connect-DB.php, included via top.php)
@@ -212,4 +212,4 @@ $formBody = $_POST['body'] ?? '';
     </div>
 </main>
 
-<?php include 'footer.php'; ?>
+<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

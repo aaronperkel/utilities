@@ -9,7 +9,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     ini_set('display_errors', 0);
     error_reporting(0);
     
-    include 'connect-DB.php';
+    require_once dirname(__DIR__) . '/includes/connect-DB.php';
     
     // Fetch data for CSV
     $sql = "
@@ -67,7 +67,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
-include 'top.php';
+require_once dirname(__DIR__) . '/includes/top.php';
 
 // fetch monthly sums for Gas & Electric
 $sql = "
@@ -394,4 +394,4 @@ new Chart(ctx, {
   }
 });
 </script>
-<?php include 'footer.php'; ?>
+<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
