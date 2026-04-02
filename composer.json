@@ -3,6 +3,12 @@
         "vlucas/phpdotenv": "^5.5"
     },
     "scripts": {
-        "serve": "php -S localhost:8080 -t web"
+        "serve": "php -S localhost:8080 -t web",
+        "post-install-cmd": [
+            "@php bin/write-vendor-htaccess.php"
+        ],
+        "post-update-cmd": [
+            "@php bin/write-vendor-htaccess.php"
+        ]
     }
 }

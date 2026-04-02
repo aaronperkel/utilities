@@ -34,10 +34,11 @@ The application has recently undergone significant refactoring for improved secu
 | `includes/` | Shared PHP: database bootstrap (`connect-DB.php`), layout (`top.php`, `nav.php`, `footer.php`), and `update_ics.php`. |
 | `scripts/` | `db.py` cron job for email reminders. |
 | `.env` | Configuration at the **repository root** (not inside `web/`). |
+| `DEPLOY.md` | Step-by-step server deploy (Silk, `.htaccess`, `APP_WEB_ROOT`, Composer). |
 
-**Vendor vs public:** Run `composer install` at the **project root** so `vendor/` sits next to `includes/`, not inside the public folder. Point Apache’s `DocumentRoot` only at the public directory (`web/` in the repo, or `www-root/` on your server). PHP loads Composer from `UTILITIES_ROOT/vendor` automatically.
+**Vendor vs public:** Run `composer install` at the **project root** so `vendor/` sits next to `includes/`, not inside the public folder. Point Apache’s `DocumentRoot` only at the public directory (`web/` in the repo, or `www-root/` on your server). PHP loads Composer from `UTILITIES_ROOT/vendor` automatically. Composer’s **post-install** script writes **`vendor/.htaccess`** (since `vendor/` is not in Git).
 
-**`APP_WEB_ROOT`:** Optional. If unset, the app assumes the public directory is `web/` under the project root (good for `composer serve`). On the server, set `APP_WEB_ROOT` to your real public path, e.g. `www-root` (relative to the project root) or `/var/www/.../www-root`, so generated files like `cal.ics` are written where the web server can serve them.
+**`APP_WEB_ROOT`:** See the top of **`.env.example`** (copy/paste scenarios). Unset = use repo `web/` folder locally. On Silk with a **flat** copy, use **`APP_WEB_ROOT=.`** (see **`DEPLOY.md`**).
 
 ---
 

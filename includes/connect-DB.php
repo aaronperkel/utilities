@@ -39,6 +39,10 @@ if (!function_exists('utilitiesPublicRoot')) {
         if ($configured === '') {
             return UTILITIES_ROOT . DIRECTORY_SEPARATOR . 'web';
         }
+        // Flat deploy (Silk, etc.): index.php and includes/ share one folder — set APP_WEB_ROOT=.
+        if ($configured === '.' || $configured === './') {
+            return UTILITIES_ROOT;
+        }
         if (preg_match('#^([\\\\/]|[a-zA-Z]:[\\\\/])#', $configured)) {
             return rtrim($configured, '/\\');
         }
