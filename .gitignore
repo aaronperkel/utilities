@@ -37,4 +37,5 @@ web/cal.ics
 # Ignore node_modules if you have any Node.js dependencies (optional)
 node_modules/
 
-repomix-output.txt
+.cursor/
+.claude/
