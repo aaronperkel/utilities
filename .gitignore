@@ -1,41 +1,37 @@
-# Ignore system files and directories
-**/.DS_Store
+# System files
+.DS_Store
 Thumbs.db
 
-# Ignore Composer's vendor directory (PHP dependencies)
+# Composer dependencies — regenerate with `composer install`
 vendor/
 
-# Ignore environment configuration files (contains sensitive data)
+# Environment files (secrets live in ../utilities.env, outside the webroot)
 .env
+.env.local
+utilities.env
 
 # Uploaded bill PDFs (keep repo clean)
-web/public/**/*.pdf
+public/**/*.pdf
 
-# Ignore Python cache and compiled files
-scripts/__pycache__/
-scripts/*.pyc
-**/__pycache__/
+# Generated calendar feed
+cal.ics
 
-# Generated calendar (optional; remove if you prefer to commit it)
-web/cal.ics
+# Python leftovers
+__pycache__/
+*.pyc
 
-# Ignore log files (if any)
+# Logs, temp, backups
 *.log
-
-# Ignore temporary or backup files
 *.tmp
 *.bak
+*.backup
 *.swp
 *.swo
 *~
 
-# Ignore IDE or editor-specific files
+# Editor / tooling
 .vscode/
 .idea/
 *.code-workspace
-
-# Ignore node_modules if you have any Node.js dependencies (optional)
-node_modules/
-
 .cursor/
 .claude/

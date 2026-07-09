@@ -1,0 +1,12 @@
+
+[tools]
+  R = "latest"
+  go = "latest"
+  java = "17"
+  node = "20"
+  perl = "5"
+  php = "8.2"
+  powershell-core = "latest"
+  python = "3.10"
+  ruby = "3.2"
+  rust = "latest"

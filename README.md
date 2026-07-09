@@ -1,167 +1,39 @@
-# 81 Buell Utilities
+# 77 N Union Utilities
 
-## Overview
-**81 Buell Utilities** is a web application designed for roommates to efficiently manage and track shared utility bills. It features a clean dashboard for viewing and updating bills, automated payment reminders, and comprehensive payment status management. Built with PHP, MySQL, and Python, it aims to simplify household bill coordination.
+A web dashboard for splitting and tracking shared utility bills (Gas, Electric, Internet) among apartment roommates at UVM. Live at [utilities.aperkel.w3.uvm.edu](https://utilities.aperkel.w3.uvm.edu) behind UVM CAS authentication.
 
-The application has recently undergone significant refactoring for improved security, maintainability, and a more robust database structure.
+## Features
 
-## Key Features
-- 💡 **Bill Dashboard**: View all utility bills with details such as billing dates, cost per person, payment status, and links to view/download bill documents.
-- 🔐 **CAS Authentication**: Secure login leveraging CAS, with role-based access distinguishing administrators from regular users.
-- 🛠 **Admin Portal**: Administrators can easily add new bills, update payment statuses for individuals, manually send email reminders, and dispatch custom emails to users.
-- 📅 **Calendar Integration**: Export bill due dates to an `.ics` calendar file for easy integration with personal calendars.
-- 📧 **Automated Email Reminders**: A Python script, typically run via cron, sends daily email reminders for unpaid bills that are due soon.
--  📄 **Pagination**: Bill lists in both the user dashboard and admin portal are paginated for easier navigation.
-- ⚙️ **Testing/Dry-Run Mode**: Admins can enable a dry-run mode via environment settings to test functionalities like adding bills or sending reminders without making actual database changes or sending emails.
-
----
+- 💡 **Bill dashboard** — all bills with per-person shares, due dates, payment status, and PDF view/download links, with pagination and a personal balance summary
+- 🔐 **CAS authentication** — UVM NetID login; access and admin rights controlled per-person in the database
+- 🛠 **Admin portal** — add bills (with PDF upload), mark who has paid, manage residents, configurable bill types with processing fees, and rent configuration
+- 📧 **Automated reminders** — daily PHP cron sends email reminders 7 days before a bill is due and again at ≤3 days (including overdue), with a batch confirmation email; admins can also send per-bill and custom bulk emails
+- 📅 **Calendar feed** — auto-regenerated `cal.ics` with every bill due date plus a monthly rent event; subscribe via `webcal://utilities.aperkel.w3.uvm.edu/cal.ics`
+- 📈 **Trends** — monthly Gas/Electric cost charts with year-over-year comparison and CSV export
+- 🔌 **JSON API** — `public/api/unpaid.php` exposes unpaid-bill totals (API key + optional HMAC auth)
 
 ## Technology Stack
-- **Backend**: PHP (8.x recommended), Python 3.10+
-- **Database**: MySQL (using PDO for PHP, SQLAlchemy & mysql-connector-python for Python)
-- **Frontend**: HTML, CSS, JavaScript (minimal)
-- **PHP Dependencies**: Composer (for `phpdotenv`)
-- **Python Dependencies**: Listed in `requirements.txt` (`sqlalchemy`, `python-dotenv`, `mysql-connector-python`)
-- **Automation**: Cron (or similar task scheduler) for running the Python reminder script.
 
----
+- **PHP 8.2** with **MySQL** (PDO, `webdb.uvm.edu`)
+- **Vanilla JS + CSS** (Chart.js via CDN on the trends page)
+- **Composer**: `vlucas/phpdotenv`, `phpmailer/phpmailer` (iCloud SMTP)
 
-## Project layout
-
-| Path | Purpose |
-|------|---------|
-| `web/` | **Default document root** — public PHP entry points (`index.php`, `portal.php`, …), `css/`, `js/`, `previews/`, and `public/` (static assets + uploaded bill PDFs under `public/YYYY/Item/`). On your host, this folder may be named something else (e.g. `www-root`); set **`APP_WEB_ROOT`** in `.env` to that path so `cal.ics` and the app agree. |
-| `includes/` | Shared PHP: database bootstrap (`connect-DB.php`), layout (`top.php`, `nav.php`, `footer.php`), and `update_ics.php`. |
-| `scripts/` | `db.py` cron job for email reminders. |
-| `.env` | Configuration at the **repository root** (not inside `web/`). |
-| `DEPLOY.md` | Step-by-step server deploy (Silk, `.htaccess`, `APP_WEB_ROOT`, Composer). |
-
-**Vendor vs public:** Run `composer install` at the **project root** so `vendor/` sits next to `includes/`, not inside the public folder. Point Apache’s `DocumentRoot` only at the public directory (`web/` in the repo, or `www-root/` on your server). PHP loads Composer from `UTILITIES_ROOT/vendor` automatically. Composer’s **post-install** script writes **`vendor/.htaccess`** (since `vendor/` is not in Git).
-
-**`APP_WEB_ROOT`:** See the top of **`.env.example`** (copy/paste scenarios). Unset = use repo `web/` folder locally. On Silk with a **flat** copy, use **`APP_WEB_ROOT=.`** (see **`DEPLOY.md`**).
-
----
-
-## Run the app locally
-
-You need PHP 8.x, Composer, a `.env` with database credentials, and a reachable MySQL database (local or remote).
-
-1. From the project root: `composer install`
-2. Copy `.env.example` to `.env` and set `DB_*` (and other variables as needed).
-3. For the built-in server, set **`DEV_REMOTE_USER`** in `.env` to a login that matches `APP_UID_TO_NAME_MAPPING` / `APP_ADMIN_USERS` (e.g. `aperkel`), because there is no CAS locally.
-4. Start the server:
-
-```bash
-composer serve
-```
-
-Equivalent manual command:
-
-```bash
-php -S localhost:8080 -t web
-```
-
-Then open `http://localhost:8080/` (and `http://localhost:8080/portal.php` for the admin UI if that user is an admin). Email sending and uploads behave like production; use dry-run settings in `.env` if you want to avoid real side effects.
-
----
-
-## Setup Instructions
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/aaronperkel/utility-manager.git
-cd utility-manager
-```
-
-### 2. Install PHP Dependencies
-
-Ensure Composer is installed. Then, from the project root, run:
+## Setup
 
 ```bash
 composer install
+cp utilities.env.example ../utilities.env   # then fill in credentials
+php -S localhost:8080                       # local dev server
 ```
-This will install the phpdotenv package, used for managing environment variables.
 
-### 3. Install Python Dependencies
+Config lives in `../utilities.env` — one directory **above** the webroot, so secrets are never web-served. For local development set `APP_LOCAL_DEV_USER` to a NetID to mock CAS; the database is remote, so UVM network access (or VPN) is required.
 
-Ensure you have Python 3.10+ and pip installed. Then, from the project root, run:
+## Deployment
 
-```bash
-pip install -r requirements.txt
+Deployed by copying this tree to the UVM `silk` server (`~/utilities.aperkel.w3.uvm.edu-root/`) — there is no build step. The reminder cron runs daily:
+
 ```
-This will install SQLAlchemy, python-dotenv, and the MySQL connector. It's recommended to use a Python virtual environment.
-
-### 4. Set Up Environment Variables
-
-Create a .env file in the project root by copying and modifying .env.example. This file stores critical configuration details. A comprehensive list of variables can be found in .env.example, but here are the key ones:
-
-- Database Configuration:
-  - DB_HOST: Your database host (e.g., localhost, webdb.uvm.edu).
-  - DB_NAME: Your database name (e.g., APERKEL_utilities).
-  - DB_USER: Your database username.
-  - DB_PASS: Your database password.
-  - DB_USE_SSL: Set to true to enable SSL for database connections.
-  - DB_SSL_CA_PATH: Absolute path to your CA certificate if DB_USE_SSL=true.
-- Application Settings:
-  - APP_BASE_URL: Absolute base URL for the application, used in email links (e.g., https://utilities.example.com).
-  - APP_ADMIN_USERS: Comma-separated list of admin usernames (e.g., from CAS REMOTE_USER).
-  - APP_BILLS_PER_PAGE: Number of bills to show per page.
-- User & Email Mapping:
-  - APP_UID_TO_NAME_MAPPING: JSON string mapping CAS REMOTE_USER uids to display names (e.g., '{"caslogin":"DisplayName"}').
-  - APP_USER_EMAILS: JSON string mapping display names (matching tblPeople.personName) to email addresses (e.g., '{"DisplayName":"user@example.com"}').
-- Email Sending Configuration:
-  - APP_EMAIL_FROM_ADDRESS & APP_EMAIL_FROM_NAME: For emails sent by PHP.
-  - APP_CONFIRMATION_EMAIL_TO: Recipient for PHP admin confirmations.
-  - PYTHON_SENDER_EMAIL & EMAIL_PASS: Credentials for SMTP server used by the Python script (e.g., iCloud app-specific password).
-  - PYTHON_CONFIRMATION_EMAIL_TO: Recipient for Python script's admin confirmations.
-- Testing/Dry-Run Mode:
-  - APP_DRY_RUN_ENABLED: Set to true to enable dry-run mode.
-  - APP_DRY_RUN_ADMIN_ONLY: If true, dry-run is only active for admins.
-- Local testing (PHP built-in server):
-  - DEV_REMOTE_USER: Login to simulate when `REMOTE_USER` is unset (uncomment in `.env.example`).
-  - APP_ENV=local: Same simulation if you are not using `php -S` but still lack `REMOTE_USER`.
-
-Note: Ensure the .env file is secured and not publicly accessible. Refer to .env.example for the complete list and detailed comments for all variables.
-
-### 5. Initialize the Database
-
-Create your MySQL database (e.g., APERKEL_utilities). Then, use the table schemas provided in [web/sql.php](web/sql.php) to set up your tables:
-
-- tblPeople: Stores user information (personID, personName).
-- tblUtilities: Stores bill details (e.g., pmkBillID, fldDate, fldItem, fldTotal, fldCost, fldDue, fldStatus, fldView). The old fldOwe column has been removed.
-- tblBillOwes: A linking table (billID, personID) that tracks which person owes for which bill, replacing fldOwe.
-Refer to [web/sql.php](web/sql.php) for the exact CREATE TABLE statements, example INSERT commands, guidance on migrating from the older schema (if applicable), and example queries for the new structure.
-
-### 6. Set Up Cron for Automation (Automated Reminders)
-
-The Python script [scripts/db.py](scripts/db.py) sends automated email reminders. Set up a cron job (or equivalent scheduled task) to run this script daily.
-
-## Example cron entry:
-
-```cron
-0 10 * * * /usr/bin/python3 /path/to/your/utility-manager/scripts/db.py
+0 10 * * * /opt/mise/installs/php/8.2/bin/php /users/a/p/aperkel/utilities.aperkel.w3.uvm.edu-root/scripts/send_reminders.php >> /users/a/p/aperkel/cron.log 2>&1
 ```
-- Adjust the schedule (`0 10 * * *` means 10:00 AM daily) as needed.
-- Replace `/usr/bin/python3` with the absolute path to the Python interpreter where you installed the dependencies (for example inside a virtual environment).
-- Replace `/path/to/your/utility-manager/scripts/db.py` with the real path to `db.py` on the server.
-- The script loads `.env` from the **project root** (parent of `scripts/`) unless you set `PYTHON_DOTENV_PATH`.
 
-## Usage
-
-- Regular Users: Log in (typically via CAS, which sets $_SERVER['REMOTE_USER']) to view their dashboard on index.php. They can see current amounts owed (calculated based on tblBillOwes) and view/download bill documents.
-- Administrators (as defined in APP_ADMIN_USERS in .env):
-  - Access the Admin Portal (portal.php) to add new bills (which now assigns owings to all users in tblPeople by default via tblBillOwes), upload bill PDFs, and update payment statuses for individuals (which modifies tblBillOwes and tblUtilities.fldStatus).
-  - Manually trigger reminder emails for specific bills via send_reminder.php.
-  - Send custom emails to registered users via send_custom_email.php.
-  - Can enable Dry-Run Mode via .env variables. When active, this mode allows testing of the above actions without making database changes, sending actual emails, or modifying files. Feedback for dry-run actions is provided through on-page messages or console logs (for db.py).
-- Automated System: The cron job for db.py automatically sends email reminders for unpaid bills to individuals listed in tblBillOwes, due within a 7-day window.
-
-## Development Notes
-
-- Security: Several security enhancements like CSRF protection (on most forms) and improved input validation have been implemented. However, ongoing vigilance and adherence to security best practices are crucial. send_custom_email.php has a TODO note for CSRF protection.
-- Error Handling: The application includes improved error display mechanisms. For production environments, consider implementing more robust server-side logging (e.g., using Monolog for PHP, Python's logging module).
-- Database Schema: The database structure has been normalized (introducing tblPeople and tblBillOwes) for better data integrity and flexibility. See [web/sql.php](web/sql.php) for details.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+See `schema.sql` for the database schema.

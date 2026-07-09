@@ -1,3 +1,0 @@
-sqlalchemy
-mysql-connector-python
-python-dotenv

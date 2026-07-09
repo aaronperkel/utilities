@@ -1,14 +1,12 @@
 {
     "require": {
-        "vlucas/phpdotenv": "^5.5"
+        "php": "^8.2",
+        "vlucas/phpdotenv": "^5.6",
+        "phpmailer/phpmailer": "^6.9"
     },
-    "scripts": {
-        "serve": "php -S localhost:8080 -t web",
-        "post-install-cmd": [
-            "@php bin/write-vendor-htaccess.php"
-        ],
-        "post-update-cmd": [
-            "@php bin/write-vendor-htaccess.php"
-        ]
+    "config": {
+        "platform": {
+            "php": "8.2"
+        }
     }
 }

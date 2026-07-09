@@ -1,2 +1,0 @@
-# Shared PHP — never served as static files; PHP include() still works from disk.
-Require all denied

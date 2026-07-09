@@ -1,0 +1,12 @@
+AuthType CAS
+Require valid-user
+
+<Files "cal.ics">
+    Satisfy Any
+    Allow from all
+</Files>
+
+<FilesMatch "\.(ico|png|svg|webmanifest)$">
+    Satisfy Any
+    Allow from all
+</FilesMatch>
