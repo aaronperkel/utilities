@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { getCurrentPerson } from "@/lib/auth";
 import Nav from "@/app/components/Nav";
 import "./globals.css";
@@ -54,6 +55,7 @@ export default async function RootLayout({
             </a>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   );

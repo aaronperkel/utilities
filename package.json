@@ -9,6 +9,7 @@
     "send-reminders": "tsx scripts/send-reminders.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "chart.js": "^4.4.9",
     "jose": "^5.9.6",
     "mysql2": "^3.11.5",
