@@ -19,7 +19,7 @@ There is no test suite; `npm run build` (which typechecks) plus hitting routes a
 
 ## Configuration
 
-Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `CAS_BASE_URL`, `APP_LOCAL_DEV_USER` (set to a NetID to bypass CAS entirely — middleware short-circuits when it is set), `BILLS_DIR` (PDF storage, defaults to `./bill-pdfs`), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
+Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BILLS_DIR` (PDF storage, defaults to `./bill-pdfs`), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
 
 The MySQL DB (`webdb.uvm.edu`) is shared with the still-deployed PHP site and only reachable from the UVM network.
 
@@ -27,7 +27,7 @@ The MySQL DB (`webdb.uvm.edu`) is shared with the still-deployed PHP site and on
 
 ### Auth flow
 
-CAS (UVM NetID) reimplemented natively: `middleware.ts` requires a valid session cookie for everything except `/cal.ics`, `/api/unpaid`, `/api/auth/*`, `/no-access`, and static assets. `GET /api/auth/login` redirects to CAS; `GET /api/auth/callback` validates the ticket via `serviceValidate` and sets a 30-day jose-signed cookie holding the NetID. Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the NetID against `tblPeople.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting).
+Interim passphrase gate (UVM CAS was removed when the site moved to Vercel — no UVM-network dependencies; the CAS implementation is in git history if ever needed): `middleware.ts` requires a valid session cookie for everything except `/login`, `/cal.ics`, `/api/unpaid`, `/no-access`, and static assets, and redirects to `/login`. The login form (`app/login/`) checks the passphrase against `SITE_PASSPHRASE` (timing-safe) and sets a 30-day jose-signed cookie whose uid is `SITE_OWNER_UID` (default `aperkel`). Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the uid against `tblPeople.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting). The root layout's `getCurrentPerson()` returns null without a DB round-trip when logged out, so `/login` renders even if the DB is unreachable.
 
 ### Database
 
@@ -67,4 +67,4 @@ Tailwind v4 (CSS-first config in `app/globals.css`): dark navy theme (`--color-p
 
 ## Deployment
 
-Unresolved. The PHP predecessor runs on UVM silk (Apache shared hosting), which cannot host a Node server; the DB is UVM-network-only, which constrains external hosts. Until decided, the PHP site remains the deployed production version.
+Deployed on Vercel at `utilities.aaronperkel.com` (July 2026), but **not yet functional there**: the MySQL DB is UVM-network-only, so Vercel cannot reach it — every DB-backed page fails until the data moves to an externally reachable host. Local bill-PDF storage (`BILLS_DIR`) also doesn't persist on Vercel's ephemeral filesystem and needs blob storage. The PHP predecessor on UVM silk remains the real production site until both are resolved.
