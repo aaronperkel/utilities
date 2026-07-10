@@ -1,7 +1,7 @@
 "use server";
 
-import fs from "node:fs/promises";
 import path from "node:path";
+import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getEmailMap, requireAdminAction } from "@/lib/auth";
@@ -10,8 +10,6 @@ import { getAllPeople, getBillTypeByName, billFileHref } from "@/lib/bills";
 import { emailIdentity, formatLongDate, newBillEmailHtml, reminderEmailHtml } from "@/lib/emails";
 import { sendSmtpMail } from "@/lib/mail";
 import { RowDataPacket } from "mysql2";
-
-const BILLS_DIR = process.env.BILLS_DIR ?? path.join(process.cwd(), "bill-pdfs");
 
 function done(ok: string): never {
   revalidatePath("/portal");
@@ -86,10 +84,19 @@ export async function addBill(
   const allPeople = await getAllPeople();
   const cost = allPeople.length > 0 ? Math.round((total / allPeople.length) * 100) / 100 : 0;
 
-  const dir = path.join(BILLS_DIR, year, typeName);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, origName), buffer!);
+  // Blob key mirrors the stored pdf_path so /files/<pdf_path> resolves directly.
   const pdfPath = `${year}/${typeName}/${origName}`;
+  try {
+    await put(pdfPath, buffer!, {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/pdf",
+    });
+  } catch (err) {
+    console.error("Blob upload failed:", err);
+    return { errors: ["Failed to store the PDF. Check BLOB_READ_WRITE_TOKEN and try again."] };
+  }
 
   const result = await execute(
     `INSERT INTO bills (type_id, bill_date, due_date, total, per_person_cost, status, pdf_path)

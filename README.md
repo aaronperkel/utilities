@@ -23,13 +23,13 @@ A web dashboard for splitting and tracking shared utility bills (Gas, Electric, 
 ```bash
 npm install
 cp .env.example .env.local   # then fill in credentials
-npm run dev                  # local dev server (UVM network/VPN required for the DB)
+npm run dev                  # local dev server
 npm run build                # production build + typecheck
 npm run send-reminders       # run the reminder cron script once
 ```
 
-For local development set `APP_LOCAL_DEV_USER` to a NetID to bypass CAS. Uploaded bill PDFs are stored outside the repo under `BILLS_DIR` (default `./bill-pdfs`) and served through an auth-gated route.
+For local development set `APP_LOCAL_DEV_USER` to a login uid to bypass the login gate. Uploaded bill PDFs live in Vercel Blob and are served through an auth-gated route.
 
 ## Deployment
 
-Deployed on Vercel at [utilities.aaronperkel.com](https://utilities.aaronperkel.com), but not yet functional there: the database is only reachable from the UVM network, so it needs to move to an externally hosted MySQL, and bill PDFs need blob storage instead of the local filesystem. Until then the PHP predecessor at [utilities.aperkel.w3.uvm.edu](https://utilities.aperkel.w3.uvm.edu) remains the live production site.
+Deployed on Vercel at [utilities.aaronperkel.com](https://utilities.aaronperkel.com), backed by TiDB Cloud Serverless (database) and Vercel Blob (bill PDFs). The PHP predecessor on UVM silk is retired.

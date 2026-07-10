@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "send-reminders": "tsx scripts/send-reminders.ts",
-    "migrate-to-tidb": "tsx scripts/migrate-to-tidb.ts"
+    "migrate-to-tidb": "tsx scripts/migrate-to-tidb.ts",
+    "migrate-pdfs-to-blob": "tsx scripts/migrate-pdfs-to-blob.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
+    "@vercel/blob": "^2.6.1",
     "chart.js": "^4.4.9",
     "jose": "^5.9.6",
     "mysql2": "^3.11.5",

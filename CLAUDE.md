@@ -14,13 +14,14 @@ npm run build            # production build + typecheck — the main verificatio
 npm run start            # serve the production build
 npm run send-reminders   # cron reminder script (tsx scripts/send-reminders.ts)
 npm run migrate-to-tidb  # one-time webdb → TiDB data migration (needs UVM VPN + SRC_DB_* env)
+npm run migrate-pdfs-to-blob  # one-time local bill-pdfs/ → Vercel Blob upload + DB cross-check
 ```
 
 There is no test suite; `npm run build` (which typechecks) plus hitting routes against the live DB is the verification path.
 
 ## Configuration
 
-Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BILLS_DIR` (PDF storage, defaults to `./bill-pdfs`), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
+Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
 
 The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000, reachable from anywhere). The legacy copy on `webdb.uvm.edu` (UVM-network-only, shared with the retired PHP site) is frozen at migration time; `scripts/migrate-to-tidb.ts` did the one-time copy and rename.
 
@@ -46,7 +47,7 @@ The pre-migration schemas are history only: `git show php-final:schema.sql` (sta
 
 ### Bill PDFs
 
-Stored under `BILLS_DIR` (`bill-pdfs/{year}/{type}/{name}.pdf`, gitignored, outside `public/`), served auth-gated by `app/files/[...path]/route.ts`. `pdf_path` values are BILLS_DIR-relative (`2026/Gas/x.pdf`); the migration stripped the PHP-era `public/` prefix, and `billFileHref()` just prepends `/files/`.
+Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) with keys equal to `pdf_path` (`{year}/{type}/{name}.pdf`), served auth-gated by `app/files/[...path]/route.ts`, which `head()`s the key and streams the blob so its public-but-unguessable URL never leaks. `pdf_path` values are store-relative (`2026/Gas/x.pdf`); `billFileHref()` just prepends `/files/`. Uploads use `addRandomSuffix: false` + `allowOverwrite: true` so keys stay deterministic. The local `bill-pdfs/` tree is the pre-Blob copy (gitignored, kept as backup); `scripts/migrate-pdfs-to-blob.ts` did the one-time upload.
 
 ### Key surfaces
 
@@ -68,4 +69,4 @@ Tailwind v4 (CSS-first config in `app/globals.css`): dark navy theme (`--color-p
 
 ## Deployment
 
-Deployed on Vercel at `utilities.aaronperkel.com` (July 2026). The DB is TiDB Cloud Serverless, reachable from Vercel — set the `DB_*` env vars in the Vercel project. Remaining gap: bill-PDF storage (`BILLS_DIR`) doesn't persist on Vercel's ephemeral filesystem — existing PDFs and new uploads need blob storage (e.g. Vercel Blob) before the add-bill flow works in production. The PHP predecessor on UVM silk is retired; its webdb data is frozen as of the TiDB migration.
+Deployed on Vercel at `utilities.aaronperkel.com` (July 2026). The DB is TiDB Cloud Serverless and PDFs live in Vercel Blob — set the `DB_*` env vars and `BLOB_READ_WRITE_TOKEN` in the Vercel project (connecting the Blob store to the project sets the token automatically). Remaining gap: `scripts/send-reminders.ts` has no scheduler — the silk crontab is retired, so nothing runs it (needs Vercel Cron or a GitHub Actions schedule). The PHP predecessor on UVM silk is retired; its webdb data is frozen as of the TiDB migration.
