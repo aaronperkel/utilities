@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { CustomEmailState, sendCustomEmail } from "@/app/email/actions";
+import { CustomEmailState, sendCustomEmail } from "@/app/portal/email/actions";
 
 export default function CustomEmailForm() {
   const [state, formAction, pending] = useActionState<CustomEmailState, FormData>(
@@ -10,10 +10,10 @@ export default function CustomEmailForm() {
   );
 
   return (
-    <div className="form-panel">
+    <div className="panel p-5">
       {state.errors.length > 0 && (
-        <div className="mb-4 rounded-(--radius-sm) border border-unpaid/40 bg-unpaid/10 px-4 py-3 text-sm">
-          <strong>Please correct the following errors:</strong>
+        <div className="flash flash-err">
+          <strong>Please correct the following:</strong>
           <ul className="mt-1 list-disc pl-5">
             {state.errors.map((e) => (
               <li key={e}>{e}</li>
@@ -45,7 +45,7 @@ export default function CustomEmailForm() {
           required
         />
         <button type="submit" className="btn btn-primary mt-5" disabled={pending}>
-          {pending ? "Sending…" : "Send Email"}
+          {pending ? "Sending…" : "Send to everyone"}
         </button>
       </form>
     </div>

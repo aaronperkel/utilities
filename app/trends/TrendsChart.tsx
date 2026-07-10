@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -19,10 +19,31 @@ export default function TrendsChart({
   elecLY: (number | null)[];
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [themeTick, setThemeTick] = useState(0);
+
+  // Rebuild the chart when the system theme flips so it re-reads the tokens.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setThemeTick((t) => t + 1);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Colors come from the same CSS tokens the rest of the site uses.
+    const styles = getComputedStyle(document.documentElement);
+    const token = (name: string) => styles.getPropertyValue(name).trim();
+    const ink = token("--ink");
+    const muted = token("--ink-muted");
+    const grid = token("--line-soft");
+    const panel = token("--panel");
+    const line = token("--line");
+    const electric = token("--accent");
+    const flame = token("--warn");
+    const mono = token("--font-ledger") || "ui-monospace, monospace";
 
     const labels = rawLabels.map((l) => {
       const [y, m] = l.split("-");
@@ -36,31 +57,31 @@ export default function TrendsChart({
         labels,
         datasets: [
           {
-            label: "🔥 Gas",
+            label: "Gas",
             data: gas,
-            borderColor: "#E2E8F0",
-            backgroundColor: "rgba(226,232,240,0.12)",
-            borderWidth: 2.5,
-            pointRadius: 3,
+            borderColor: flame,
+            backgroundColor: flame,
+            borderWidth: 2,
+            pointRadius: 2.5,
             pointHoverRadius: 5,
             fill: false,
             tension: 0.3,
           },
           {
-            label: "⚡ Electric",
+            label: "Electric",
             data: elec,
-            borderColor: "#60A5FA",
-            backgroundColor: "rgba(96,165,250,0.12)",
-            borderWidth: 2.5,
-            pointRadius: 3,
+            borderColor: electric,
+            backgroundColor: electric,
+            borderWidth: 2,
+            pointRadius: 2.5,
             pointHoverRadius: 5,
             fill: false,
             tension: 0.3,
           },
           {
-            label: "🔥 Gas (last year)",
+            label: "Gas (last year)",
             data: gasLY,
-            borderColor: "rgba(226,232,240,0.35)",
+            borderColor: flame + "66",
             borderWidth: 1.5,
             borderDash: [5, 4],
             pointRadius: 0,
@@ -69,9 +90,9 @@ export default function TrendsChart({
             tension: 0.3,
           },
           {
-            label: "⚡ Electric (last year)",
+            label: "Electric (last year)",
             data: elecLY,
-            borderColor: "rgba(96,165,250,0.35)",
+            borderColor: electric + "66",
             borderWidth: 1.5,
             borderDash: [5, 4],
             pointRadius: 0,
@@ -89,21 +110,23 @@ export default function TrendsChart({
           legend: {
             position: "top",
             labels: {
-              color: "rgba(230,238,248,0.9)",
+              color: ink,
               usePointStyle: true,
               pointStyle: "line",
               padding: 20,
-              font: { size: 13 },
+              font: { size: 12, family: mono },
             },
           },
           tooltip: {
-            backgroundColor: "rgba(11,18,32,0.95)",
-            titleColor: "#E6EEF8",
-            bodyColor: "#E6EEF8",
-            borderColor: "rgba(255,255,255,0.1)",
+            backgroundColor: panel,
+            titleColor: ink,
+            bodyColor: ink,
+            borderColor: line,
             borderWidth: 1,
             padding: 12,
-            cornerRadius: 8,
+            cornerRadius: 6,
+            titleFont: { family: mono },
+            bodyFont: { family: mono },
             displayColors: true,
             callbacks: {
               label: (ctx) =>
@@ -116,28 +139,28 @@ export default function TrendsChart({
         scales: {
           x: {
             ticks: {
-              color: "rgba(230,238,248,0.6)",
+              color: muted,
               maxRotation: isMobile ? 45 : 0,
-              font: { size: isMobile ? 10 : 12 },
+              font: { size: isMobile ? 10 : 11, family: mono },
             },
-            grid: { color: "rgba(255,255,255,0.04)" },
+            grid: { color: grid },
           },
           y: {
             beginAtZero: true,
             ticks: {
-              color: "rgba(230,238,248,0.6)",
-              font: { size: 12 },
+              color: muted,
+              font: { size: 11, family: mono },
               callback: (v) =>
                 "$" + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }),
             },
-            grid: { color: "rgba(255,255,255,0.06)" },
+            grid: { color: grid },
           },
         },
       },
     });
 
     return () => chart.destroy();
-  }, [rawLabels, gas, elec, gasLY, elecLY]);
+  }, [rawLabels, gas, elec, gasLY, elecLY, themeTick]);
 
   return <canvas ref={canvasRef} />;
 }

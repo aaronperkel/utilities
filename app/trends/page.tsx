@@ -71,13 +71,13 @@ export default async function TrendsPage() {
   }
   const moveInYear = moveInDate ? moveInDate.slice(0, 4) : null;
 
-  const insightCard = (
+  const insightColumn = (
     title: string,
     values: Record<string, number | null | undefined>,
     totalRow?: number,
   ) => (
-    <div className="card px-6 py-5">
-      <h3 className="mb-3 font-semibold">{title}</h3>
+    <div className="px-5 py-4">
+      <span className="eyebrow mb-2">{title}</span>
       <ul className="space-y-1.5 text-sm">
         {BILL_ITEMS.map((item) => {
           const v = values[item];
@@ -86,14 +86,16 @@ export default async function TrendsPage() {
               <span>
                 {billEmoji(emojiMap, item)} {item}
               </span>
-              <strong>{typeof v === "number" ? `$${money(v)}` : "—"}</strong>
+              <span className="figure font-medium">
+                {typeof v === "number" ? `$${money(v)}` : "—"}
+              </span>
             </li>
           );
         })}
         {totalRow !== undefined && (
-          <li className="mt-2 flex items-center justify-between border-t border-border-light pt-2">
+          <li className="mt-2 flex items-center justify-between border-t border-line-soft pt-2">
             <span>Total</span>
-            <strong>${money(totalRow)}</strong>
+            <span className="figure font-semibold">${money(totalRow)}</span>
           </li>
         )}
       </ul>
@@ -102,30 +104,32 @@ export default async function TrendsPage() {
 
   return (
     <main>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="section-title mb-0!">Trends</h2>
-        <a href="/trends/csv" className="btn btn-outline btn-sm">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="page-title">Trends</h1>
+          <p className="text-sm text-ink-muted">
+            Monthly gas &amp; electric costs, with last year dashed for comparison.
+          </p>
+        </div>
+        <a href="/trends/csv" className="btn btn-sm">
           Export CSV
         </a>
       </div>
 
-      <div className="card p-5">
+      <div className="panel p-5">
         <div className="h-[340px]">
           <TrendsChart rawLabels={labels} gas={gas} elec={elec} gasLY={gasLY} elecLY={elecLY} />
         </div>
-        <p className="mt-3 text-center text-sm text-ink-muted">
-          Monthly Gas &amp; Electric costs — last 12 months.
-        </p>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {insightCard(`${now.getFullYear()} Year to Date`, ytdByItem)}
-        {insightCard(
-          `Since Move-In${moveInYear ? ` (${moveInYear})` : ""}`,
+      <div className="panel mt-6 grid divide-y divide-line-soft sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {insightColumn(`${now.getFullYear()} year to date`, ytdByItem)}
+        {insightColumn(
+          `Since move-in${moveInYear ? ` (${moveInYear})` : ""}`,
           allTimeByItem,
           allTimeGrand,
         )}
-        {insightCard("This Time Last Year", lastYearTotals)}
+        {insightColumn("This time last year", lastYearTotals)}
       </div>
     </main>
   );

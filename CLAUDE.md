@@ -51,10 +51,9 @@ Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) wi
 
 ### Key surfaces
 
-- `app/page.tsx` — dashboard: personal balance, bills grouped by year, per-user paid/unpaid badges
-- `app/portal/` — admin portal; all mutations are server actions in `actions.ts` (add bill with PDF upload + notification emails, auto-saving payment checkboxes, people/bill-types/rent CRUD, per-bill reminders). Flash messages travel as `/portal?ok=`/`?err=` query params
-- `app/trends/` — Chart.js line chart (last 12 months + last-year overlay), insight cards, CSV at `/trends/csv`
-- `app/email/` — admin bulk email; `app/previews/` — renders the real template functions from `lib/emails.ts` with sample data
+- `app/page.tsx` — dashboard: statement summary strip (balance / next due / bill count), bills grouped by year, per-user paid/unpaid tags
+- `app/portal/` — admin portal in three tabs (`PortalTabs`): `/portal` = bills (who-owes strip, add-bill disclosure, payment checkboxes, per-bill reminders), `/portal/household` = residents + bill types + rent, `/portal/email` = bulk email (old `/email` URL 301s there via `next.config.ts`). All mutations are server actions; flash messages travel as `?ok=`/`?err=` query params, and `done()`/`fail()` in `actions.ts` take the destination path so household actions land back on their tab
+- `app/trends/` — Chart.js line chart (last 12 months + last-year overlay, colors read from the CSS tokens at mount and rebuilt on theme change), insight columns, CSV at `/trends/csv`
 - `app/cal.ics/route.ts` — public iCal feed generated on demand (the PHP site wrote a static file after every change; here it can never go stale)
 - `app/api/unpaid/route.ts` — public JSON API, `X-Api-Key` + optional HMAC (`METHOD\nPATH\nTS\nBODY` signature, 300s skew window)
 - `scripts/send-reminders.ts` — cron: reminds at exactly 7 days before due and again at ≤3 days (including overdue), then emails a batch confirmation to `APP_CONFIRMATION_EMAIL_TO`
@@ -65,7 +64,7 @@ Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) wi
 
 ### Styling
 
-Tailwind v4 (CSS-first config in `app/globals.css`): dark navy theme (`--color-page #0f1724`, `--color-panel #0b1220`, primary blue `#3b82f6`, paid `#48bb78` / unpaid `#f56565`). Shared component classes (`.card`, `.btn*`, `.badge*`, `.due-*`, `.field-*`, `.data-table`) are defined in `@layer components` — note Tailwind v4 cannot `@apply` a custom class from the same layer.
+Tailwind v4 (CSS-first config in `app/globals.css`), "statement portal" theme: light and dark follow the system via `prefers-color-scheme` — raw values live as CSS variables on `:root` and are mapped to utilities in `@theme inline` (so `bg-panel` etc. flip automatically; anything hardcoded won't). One accent blue; green/red/amber are reserved for paid/unpaid/due-soon semantics. IBM Plex Mono (next/font, `--font-ledger`) is the signature: applied via `.figure`/`.eyebrow`/table headers to every number, date, and section label. Shared component classes (`.panel`, `.eyebrow`, `.figure`, `.btn*`, `.tag*`, `.due-*`, `.field-*`, `.data-table`, `.tab*`, `.flash*`) live in `@layer components` — note Tailwind v4 cannot `@apply` a custom class from the same layer.
 
 ## Deployment
 

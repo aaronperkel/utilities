@@ -6,7 +6,7 @@ A web dashboard for splitting and tracking shared utility bills (Gas, Electric, 
 
 - 💡 **Bill dashboard** — all bills with per-person shares, due dates, payment status, and PDF view/download links, with pagination and a personal balance summary
 - 🔐 **Passphrase login** — interim single-passphrase gate while the site is being stood up off UVM hosting (the original UVM CAS implementation lives in git history); access and admin rights controlled per-person in the database
-- 🛠 **Admin portal** — add bills (with PDF upload + notification emails), auto-saving payment checkboxes, manage residents, configurable bill types with processing fees, and rent configuration
+- 🛠 **Admin portal** — Bills / Household / Email tabs: add bills (with PDF upload + notification emails), auto-saving payment checkboxes, manage residents, configurable bill types with processing fees, and rent configuration
 - 📧 **Automated reminders** — cron script emails reminders 7 days before a bill is due and again at ≤3 days (including overdue), with a batch confirmation email; admins can also send per-bill and custom bulk emails
 - 📅 **Calendar feed** — `/cal.ics` generated on demand with every bill due date plus a monthly rent event
 - 📈 **Trends** — monthly Gas/Electric cost charts (Chart.js) with year-over-year comparison, insight cards, and CSV export
@@ -14,8 +14,8 @@ A web dashboard for splitting and tracking shared utility bills (Gas, Electric, 
 
 ## Technology Stack
 
-- **Next.js 15** (App Router) + **TypeScript** + **Tailwind v4**
-- **MySQL** via `mysql2` (`webdb.uvm.edu` — UVM network only)
+- **Next.js 15** (App Router) + **TypeScript** + **Tailwind v4** (light/dark via system preference)
+- **MySQL** via `mysql2` (TiDB Cloud Serverless)
 - **nodemailer** (iCloud SMTP) for email, **jose** for signed session cookies
 
 ## Setup

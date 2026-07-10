@@ -11,14 +11,16 @@ import { emailIdentity, formatLongDate, newBillEmailHtml, reminderEmailHtml } fr
 import { sendSmtpMail } from "@/lib/mail";
 import { RowDataPacket } from "mysql2";
 
-function done(ok: string): never {
-  revalidatePath("/portal");
-  redirect(`/portal?ok=${encodeURIComponent(ok)}`);
+function done(ok: string, path = "/portal"): never {
+  revalidatePath(path);
+  redirect(`${path}?ok=${encodeURIComponent(ok)}`);
 }
 
-function fail(err: string): never {
-  redirect(`/portal?err=${encodeURIComponent(err)}`);
+function fail(err: string, path = "/portal"): never {
+  redirect(`${path}?err=${encodeURIComponent(err)}`);
 }
+
+const HOUSEHOLD = "/portal/household";
 
 // ---------------------------------------------------------------------------
 // Add bill (used with useActionState so validation errors render inline)
@@ -297,7 +299,7 @@ export async function savePerson(formData: FormData): Promise<void> {
   try {
     await requireAdminAction();
   } catch {
-    fail("Admin access required.");
+    fail("Admin access required.", HOUSEHOLD);
   }
 
   const action = String(formData.get("person_action") ?? "add");
@@ -306,8 +308,8 @@ export async function savePerson(formData: FormData): Promise<void> {
   const email = String(formData.get("person_email") ?? "").trim();
   const isAdmin = formData.get("person_is_admin") ? 1 : 0;
 
-  if (!name || !uid || !email) fail("Name, login ID, and email are all required.");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail("Invalid email address.");
+  if (!name || !uid || !email) fail("Name, login ID, and email are all required.", HOUSEHOLD);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail("Invalid email address.", HOUSEHOLD);
 
   try {
     if (action === "add") {
@@ -317,7 +319,7 @@ export async function savePerson(formData: FormData): Promise<void> {
       );
     } else {
       const id = Number(formData.get("person_id"));
-      if (!id) fail("Invalid user ID.");
+      if (!id) fail("Invalid user ID.", HOUSEHOLD);
       await execute(
         "UPDATE people SET name=?, uid=?, email=?, is_admin=? WHERE id=?",
         [name, uid, email, isAdmin, id],
@@ -325,24 +327,27 @@ export async function savePerson(formData: FormData): Promise<void> {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    fail(/duplicate/i.test(message) ? "That name or login ID is already in use." : `Database error: ${message}`);
+    fail(
+      /duplicate/i.test(message) ? "That name or login ID is already in use." : `Database error: ${message}`,
+      HOUSEHOLD,
+    );
   }
 
-  done(action === "add" ? `User '${name}' added.` : `User '${name}' updated.`);
+  done(action === "add" ? `User '${name}' added.` : `User '${name}' updated.`, HOUSEHOLD);
 }
 
 export async function removePerson(formData: FormData): Promise<void> {
   try {
     await requireAdminAction();
   } catch {
-    fail("Admin access required.");
+    fail("Admin access required.", HOUSEHOLD);
   }
   const id = Number(formData.get("person_id"));
-  if (!id) fail("Invalid user ID.");
+  if (!id) fail("Invalid user ID.", HOUSEHOLD);
   // No FK cascade on TiDB — clear their outstanding shares explicitly.
   await execute("DELETE FROM bill_debts WHERE person_id = ?", [id]);
   await execute("DELETE FROM people WHERE id = ?", [id]);
-  done("User removed.");
+  done("User removed.", HOUSEHOLD);
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +358,7 @@ export async function saveBillType(formData: FormData): Promise<void> {
   try {
     await requireAdminAction();
   } catch {
-    fail("Admin access required.");
+    fail("Admin access required.", HOUSEHOLD);
   }
 
   const action = String(formData.get("billtype_action") ?? "add");
@@ -362,8 +367,10 @@ export async function saveBillType(formData: FormData): Promise<void> {
   const feeStr = String(formData.get("billtype_fee") ?? "0");
   const fee = Number(feeStr);
 
-  if (!name || !emoji) fail("Name and emoji are required.");
-  if (!Number.isFinite(fee) || fee < 0) fail("Processing fee must be zero or a positive number.");
+  if (!name || !emoji) fail("Name and emoji are required.", HOUSEHOLD);
+  if (!Number.isFinite(fee) || fee < 0) {
+    fail("Processing fee must be zero or a positive number.", HOUSEHOLD);
+  }
 
   try {
     if (action === "add") {
@@ -373,7 +380,7 @@ export async function saveBillType(formData: FormData): Promise<void> {
       );
     } else {
       const id = Number(formData.get("billtype_id"));
-      if (!id) fail("Invalid bill type ID.");
+      if (!id) fail("Invalid bill type ID.", HOUSEHOLD);
       await execute(
         "UPDATE bill_types SET name=?, emoji=?, processing_fee=? WHERE id=?",
         [name, emoji, fee, id],
@@ -385,38 +392,39 @@ export async function saveBillType(formData: FormData): Promise<void> {
       /duplicate/i.test(message)
         ? "A bill type with that name already exists."
         : `Database error: ${message}`,
+      HOUSEHOLD,
     );
   }
 
-  done(action === "add" ? `Bill type '${name}' added.` : `Bill type '${name}' updated.`);
+  done(action === "add" ? `Bill type '${name}' added.` : `Bill type '${name}' updated.`, HOUSEHOLD);
 }
 
 export async function removeBillType(formData: FormData): Promise<void> {
   try {
     await requireAdminAction();
   } catch {
-    fail("Admin access required.");
+    fail("Admin access required.", HOUSEHOLD);
   }
   const id = Number(formData.get("billtype_id"));
-  if (!id) fail("Invalid bill type ID.");
+  if (!id) fail("Invalid bill type ID.", HOUSEHOLD);
 
   const nameRows = await query<RowDataPacket>(
     "SELECT name FROM bill_types WHERE id = ?",
     [id],
   );
   const name = nameRows[0]?.name;
-  if (!name) fail("Bill type not found.");
+  if (!name) fail("Bill type not found.", HOUSEHOLD);
 
   const countRows = await query<RowDataPacket>(
     "SELECT COUNT(*) AS n FROM bills WHERE type_id = ?",
     [id],
   );
   if (Number(countRows[0].n) > 0) {
-    fail(`Cannot remove '${name}' — there are existing bills of this type.`);
+    fail(`Cannot remove '${name}' — there are existing bills of this type.`, HOUSEHOLD);
   }
 
   await execute("DELETE FROM bill_types WHERE id = ?", [id]);
-  done(`Bill type '${name}' removed.`);
+  done(`Bill type '${name}' removed.`, HOUSEHOLD);
 }
 
 // ---------------------------------------------------------------------------
@@ -427,18 +435,20 @@ export async function saveRent(formData: FormData): Promise<void> {
   try {
     await requireAdminAction();
   } catch {
-    fail("Admin access required.");
+    fail("Admin access required.", HOUSEHOLD);
   }
 
   const amount = Number(formData.get("rent_amount"));
   const start = String(formData.get("rent_start") ?? "");
   const end = String(formData.get("rent_end") ?? "");
 
-  if (!Number.isFinite(amount) || amount <= 0) fail("Rent amount must be a positive number.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-    fail("Valid start and end dates are required.");
+  if (!Number.isFinite(amount) || amount <= 0) {
+    fail("Rent amount must be a positive number.", HOUSEHOLD);
   }
-  if (end <= start) fail("End date must be after start date.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+    fail("Valid start and end dates are required.", HOUSEHOLD);
+  }
+  if (end <= start) fail("End date must be after start date.", HOUSEHOLD);
 
   const existing = await query<RowDataPacket>("SELECT id FROM rent_config LIMIT 1");
   if (existing.length > 0) {
@@ -453,5 +463,5 @@ export async function saveRent(formData: FormData): Promise<void> {
     );
   }
 
-  done("Rent configuration updated.");
+  done("Rent configuration updated.", HOUSEHOLD);
 }

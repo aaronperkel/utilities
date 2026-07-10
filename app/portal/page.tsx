@@ -7,35 +7,27 @@ import {
   getBillsForPage,
   getBillTypes,
   getOwedAmounts,
-  getRentConfig,
   getTotalBillCount,
 } from "@/lib/bills";
 import DueChip from "@/app/components/DueChip";
 import Pagination from "@/app/components/Pagination";
 import { DownloadIcon, EyeIcon } from "@/app/components/icons";
+import PortalTabs from "@/app/portal/PortalTabs";
 import AddBillForm from "@/app/portal/AddBillForm";
 import PaymentCheckboxes from "@/app/portal/PaymentCheckboxes";
 import ReminderButton from "@/app/portal/ReminderButton";
-import BillTypesSection from "@/app/portal/BillTypesSection";
-import UsersSection, { PersonDetail } from "@/app/portal/UsersSection";
-import { saveRent } from "@/app/portal/actions";
 
 function money(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatBillDate(ymd: string): string {
+function formatDayMonth(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
-}
-
-function formatMonthYear(ymd: string): string {
-  const [y, m] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 export default async function PortalPage({
@@ -49,20 +41,16 @@ export default async function PortalPage({
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
   const currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [billTypes, owedAmounts, totalBills, rentConfig] = await Promise.all([
+  const [billTypes, owedAmounts, totalBills] = await Promise.all([
     getBillTypes(),
     getOwedAmounts(),
     getTotalBillCount(),
-    getRentConfig(),
   ]);
 
-  const peopleDetails = await query<RowDataPacket>(
-    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
+  const peopleRows = await query<RowDataPacket>(
+    "SELECT id, name FROM people ORDER BY name ASC",
   );
-  const allPeople = peopleDetails.map((p) => ({
-    id: Number(p.id),
-    name: String(p.name),
-  }));
+  const allPeople = peopleRows.map((p) => ({ id: Number(p.id), name: String(p.name) }));
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
   if (currentPage > totalPages && totalBills > 0) redirect(`/portal?page=${totalPages}`);
@@ -87,62 +75,57 @@ export default async function PortalPage({
 
   return (
     <main>
-      <h2 className="section-title">Admin Portal</h2>
+      <PortalTabs active="bills" />
 
-      {err && (
-        <div className="mb-5 rounded-(--radius-sm) border border-unpaid/40 bg-unpaid/10 px-4 py-3 text-sm">
-          {err}
-        </div>
-      )}
-      {ok && (
-        <div className="mb-5 rounded-(--radius-sm) border border-paid/40 bg-paid/10 px-4 py-3 text-sm">
-          {ok}
-        </div>
-      )}
+      {err && <div className="flash flash-err">{err}</div>}
+      {ok && <div className="flash flash-ok">{ok}</div>}
 
       {owedAmounts.length > 0 && (
-        <div className="card mb-6 px-6 py-5">
-          <h3 className="mb-3 font-semibold">Who Owes What</h3>
-          <ul className="space-y-1.5">
+        <section className="mb-7">
+          <div className="mb-2 flex items-center gap-3">
+            <span className="eyebrow">Outstanding balances</span>
+            <span className="h-px flex-1 bg-line-soft" aria-hidden="true" />
+          </div>
+          <div className="panel grid grid-cols-2 sm:flex sm:divide-x sm:divide-line-soft">
             {owedAmounts.map(({ name, amount }) => (
-              <li key={name} className="flex items-center justify-between text-sm">
-                <span className="font-semibold">{name}</span>
-                <strong className="text-unpaid">${money(amount)}</strong>
-              </li>
+              <div key={name} className="px-5 py-3 sm:flex-1">
+                <span className="eyebrow mb-0.5">{name}</span>
+                <div className="figure font-semibold text-unpaid">${money(amount)}</div>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </section>
       )}
 
-      <section>
-        <h2 className="section-title">Add New Bill</h2>
-        <AddBillForm
-          billTypes={billTypes.map((t) => ({
-            name: t.name,
-            emoji: t.emoji,
-            processingFee: Number(t.processingFee),
-          }))}
-          peopleCount={allPeople.length}
-        />
-      </section>
+      <AddBillForm
+        billTypes={billTypes.map((t) => ({
+          name: t.name,
+          emoji: t.emoji,
+          processingFee: Number(t.processingFee),
+        }))}
+        peopleCount={allPeople.length}
+      />
 
-      <h2 className="section-title">Bills</h2>
-      <div className="card overflow-x-auto">
+      <div className="panel overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
               <th>Bill</th>
-              <th>Amount</th>
               <th>Due</th>
               <th>Status</th>
-              <th>Paid By</th>
-              <th>Actions</th>
+              <th>Paid by</th>
+              <th className="num">Amount</th>
+              <th className="num">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {bills.length === 0 ? (
               <tr>
-                <td colSpan={6}>No bills found for this page.</td>
+                <td colSpan={6} className="text-center text-ink-muted">
+                  No bills on this page.
+                </td>
               </tr>
             ) : (
               bills.map((bill) => {
@@ -154,22 +137,18 @@ export default async function PortalPage({
                 return (
                   <tr key={bill.id}>
                     <td>
-                      <div className="font-semibold">
+                      <div className="font-medium">
                         {bill.typeEmoji} {bill.typeName}
                       </div>
-                      <div className="text-xs text-ink-muted">{formatBillDate(bill.billDate)}</div>
-                    </td>
-                    <td>
-                      <div className="font-semibold">${money(Number(bill.total))}</div>
-                      <div className="text-xs text-ink-muted">
-                        ${money(Number(bill.perPersonCost))} / person
+                      <div className="figure text-xs text-ink-muted">
+                        {formatDayMonth(bill.billDate)}
                       </div>
                     </td>
                     <td>
                       <DueChip due={bill.dueDate} paid={bill.status === "paid"} />
                     </td>
                     <td>
-                      <span className={`badge ${bill.status === "paid" ? "badge-paid" : "badge-unpaid"}`}>
+                      <span className={`tag ${bill.status === "paid" ? "tag-paid" : "tag-unpaid"}`}>
                         {bill.status === "paid" ? "Paid" : "Unpaid"}
                       </span>
                     </td>
@@ -184,8 +163,14 @@ export default async function PortalPage({
                         "N/A"
                       )}
                     </td>
-                    <td>
-                      <div className="flex gap-1.5">
+                    <td className="num">
+                      <div className="figure font-medium">${money(Number(bill.total))}</div>
+                      <div className="figure text-xs text-ink-muted">
+                        ${money(Number(bill.perPersonCost))} ea
+                      </div>
+                    </td>
+                    <td className="num">
+                      <div className="flex justify-end gap-1.5">
                         {fileHref && (
                           <>
                             <a href={fileHref} target="_blank" className="btn-icon" title="View bill">
@@ -208,80 +193,6 @@ export default async function PortalPage({
       </div>
 
       <Pagination currentPage={currentPage} totalPages={totalPages} basePath="/portal" />
-
-      <BillTypesSection
-        billTypes={billTypes.map((t) => ({
-          id: t.id,
-          name: t.name,
-          emoji: t.emoji,
-          processingFee: Number(t.processingFee),
-        }))}
-      />
-
-      <section className="mt-10">
-        <h2 className="section-title">Rent Configuration</h2>
-        <div className="form-panel">
-          <form action={saveRent}>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className="field-label" htmlFor="rent_amount">
-                  Monthly Rent
-                </label>
-                <input
-                  className="field-input"
-                  type="number"
-                  id="rent_amount"
-                  name="rent_amount"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  defaultValue={rentConfig ? Number(rentConfig.monthlyRent).toFixed(2) : ""}
-                  required
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="rent_start">
-                  Lease Start
-                </label>
-                <input
-                  className="field-input"
-                  type="date"
-                  id="rent_start"
-                  name="rent_start"
-                  defaultValue={rentConfig?.leaseStart ?? ""}
-                  required
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="rent_end">
-                  Lease End
-                </label>
-                <input
-                  className="field-input"
-                  type="date"
-                  id="rent_end"
-                  name="rent_end"
-                  defaultValue={rentConfig?.leaseEnd ?? ""}
-                  required
-                />
-              </div>
-            </div>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button type="submit" className="btn btn-primary">
-                Save Rent Config
-              </button>
-              {rentConfig && (
-                <span className="text-sm text-ink-muted">
-                  Current: ${money(Number(rentConfig.monthlyRent))}/mo (
-                  {formatMonthYear(rentConfig.leaseStart)} – {formatMonthYear(rentConfig.leaseEnd)})
-                </span>
-              )}
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <UsersSection people={peopleDetails as unknown as PersonDetail[]} />
     </main>
   );
 }

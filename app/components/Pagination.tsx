@@ -22,10 +22,10 @@ export default function Pagination({
       key={p}
       href={href(p)}
       aria-current={p === currentPage ? "page" : undefined}
-      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-(--radius-sm) px-2 text-sm ${
+      className={`figure inline-flex h-8 min-w-8 items-center justify-center rounded-(--radius-sm) px-2 text-sm ${
         p === currentPage
-          ? "bg-primary text-white font-semibold"
-          : "text-ink hover:bg-white/[0.06]"
+          ? "bg-primary font-medium text-white"
+          : "text-ink-muted hover:bg-panel-2 hover:text-ink"
       }`}
     >
       {p}
@@ -34,16 +34,16 @@ export default function Pagination({
 
   return (
     <nav className="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Pagination">
-      <div className="text-sm text-ink-muted">
+      <div className="figure text-xs text-ink-muted">
         Page {currentPage} of {totalPages}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {currentPage > 1 ? (
-          <Link className="btn btn-outline btn-sm" href={href(currentPage - 1)} aria-label="Previous page">
-            « Prev
+          <Link className="btn btn-sm" href={href(currentPage - 1)} aria-label="Previous page">
+            ← Prev
           </Link>
         ) : (
-          <span className="btn btn-outline btn-sm opacity-40 pointer-events-none">« Prev</span>
+          <span className="btn btn-sm pointer-events-none opacity-40">← Prev</span>
         )}
 
         {start > 1 && (
@@ -63,11 +63,11 @@ export default function Pagination({
         )}
 
         {currentPage < totalPages ? (
-          <Link className="btn btn-outline btn-sm" href={href(currentPage + 1)} aria-label="Next page">
-            Next »
+          <Link className="btn btn-sm" href={href(currentPage + 1)} aria-label="Next page">
+            Next →
           </Link>
         ) : (
-          <span className="btn btn-outline btn-sm opacity-40 pointer-events-none">Next »</span>
+          <span className="btn btn-sm pointer-events-none opacity-40">Next →</span>
         )}
       </div>
     </nav>

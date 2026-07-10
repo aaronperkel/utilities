@@ -12,24 +12,21 @@ export default async function LoginPage({
   const safeNext = next?.startsWith("/") ? next : "/";
 
   return (
-    <main className="mx-auto max-w-sm py-12">
-      <section className="card px-6 py-6">
-        <h1 className="text-xl font-bold">Private site</h1>
+    <main className="mx-auto max-w-sm py-16">
+      <div className="panel p-6">
+        <span className="eyebrow mb-1">Private site</span>
+        <h1 className="text-lg font-bold">Resident access</h1>
         <p className="mt-1 mb-5 text-sm text-ink-muted">
-          Enter the passphrase to continue.
+          Enter the house passphrase to continue.
         </p>
-        {err && (
-          <div className="mb-4 rounded-(--radius-sm) border border-unpaid/40 bg-unpaid/10 px-4 py-3 text-sm">
-            Wrong passphrase.
-          </div>
-        )}
+        {err && <div className="flash flash-err">Wrong passphrase.</div>}
         <form action={login}>
           <input type="hidden" name="next" value={safeNext} />
           <label className="field-label" htmlFor="passphrase">
             Passphrase
           </label>
           <input
-            className="field-input"
+            className="field-input figure"
             type="password"
             id="passphrase"
             name="passphrase"
@@ -40,7 +37,7 @@ export default async function LoginPage({
             Unlock
           </button>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

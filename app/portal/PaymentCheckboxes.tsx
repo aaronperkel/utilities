@@ -43,7 +43,7 @@ export default function PaymentCheckboxes({
         <label key={p.id} className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
           <input
             type="checkbox"
-            className="accent-[#3b82f6]"
+            className="accent-(--primary)"
             checked={paidIds.has(p.id)}
             onChange={(e) => toggle(p.id, e.target.checked)}
           />

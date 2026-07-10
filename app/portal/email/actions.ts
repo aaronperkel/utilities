@@ -58,6 +58,6 @@ export async function sendCustomEmail(
     await sendSmtpMail(confirmTo, "Admin Confirmation: Custom Email Sent", confirmBody);
   }
 
-  revalidatePath("/portal");
-  redirect(`/portal?ok=${encodeURIComponent("Custom email has been dispatched.")}`);
+  revalidatePath("/portal/email");
+  redirect(`/portal/email?ok=${encodeURIComponent("Email sent to all residents.")}`);
 }

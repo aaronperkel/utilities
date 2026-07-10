@@ -6,6 +6,7 @@ import {
   billFileHref,
   getBillsForPage,
   getTotalBillCount,
+  getUserNextDue,
   getUserOwedAmount,
   getUserOwedBillIds,
 } from "@/lib/bills";
@@ -13,12 +14,11 @@ import DueChip from "@/app/components/DueChip";
 import Pagination from "@/app/components/Pagination";
 import { DownloadIcon, EyeIcon } from "@/app/components/icons";
 
-function formatBillDate(ymd: string): string {
+function formatDayMonth(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
   });
 }
 
@@ -45,12 +45,13 @@ export default async function DashboardPage({
   const { page } = await searchParams;
 
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
-  let currentPage = Math.max(1, Number(page ?? 1) || 1);
+  const currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [owedAmount, owedBillIds, totalBills] = await Promise.all([
+  const [owedAmount, owedBillIds, totalBills, nextDue] = await Promise.all([
     getUserOwedAmount(person.id),
     getUserOwedBillIds(person.id),
     getTotalBillCount(),
+    getUserNextDue(person.id),
   ]);
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
@@ -59,61 +60,97 @@ export default async function DashboardPage({
   const bills = await getBillsForPage(billsPerPage, (currentPage - 1) * billsPerPage);
   const billsByYear = groupBillsByYear(bills);
 
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   return (
     <main>
-      <div className="card mb-8 flex flex-wrap items-center justify-between gap-6 px-6 py-5">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold">Welcome, {person.name}</h2>
-          <p className="text-ink-muted text-sm">Your current outstanding balance</p>
+          <h1 className="page-title">Welcome, {person.name}</h1>
+          <p className="text-sm text-ink-muted">Statement as of {today}</p>
         </div>
-        <div className="text-right">
-          <div className="text-4xl font-extrabold">${money(owedAmount)}</div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Link href="/trends" className="btn btn-primary btn-sm">
-              View Trends
+        <div className="flex gap-2">
+          <a href="/trends/csv" className="btn btn-sm">
+            Export CSV
+          </a>
+          <a href="webcal://utilities.aaronperkel.com/cal.ics" className="btn btn-sm">
+            iCal feed
+          </a>
+        </div>
+      </div>
+
+      <div className="panel mb-8 grid divide-y divide-line-soft sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="px-5 py-4">
+          <span className="eyebrow mb-1">Balance due</span>
+          <div className="figure text-[1.7rem] font-semibold leading-tight">
+            ${money(owedAmount)}
+          </div>
+          <div className="mt-0.5 text-xs text-ink-muted">
+            {owedBillIds.size > 0
+              ? `across ${owedBillIds.size} unpaid ${owedBillIds.size === 1 ? "bill" : "bills"}`
+              : "nothing outstanding"}
+          </div>
+        </div>
+        <div className="px-5 py-4">
+          <span className="eyebrow mb-1">Next due</span>
+          <div className="figure text-[1.7rem] font-semibold leading-tight">
+            {nextDue ? formatDayMonth(nextDue.dueDate) : "—"}
+          </div>
+          <div className="mt-0.5 text-xs text-ink-muted">
+            {nextDue ? nextDue.typeName : "no upcoming payments"}
+          </div>
+        </div>
+        <div className="px-5 py-4">
+          <span className="eyebrow mb-1">Bills on record</span>
+          <div className="figure text-[1.7rem] font-semibold leading-tight">{totalBills}</div>
+          <div className="mt-0.5 text-xs text-ink-muted">
+            <Link href="/trends" className="text-accent hover:underline">
+              view trends →
             </Link>
           </div>
         </div>
       </div>
 
-      <h2 className="section-title">Utility Bills</h2>
-
       {bills.length === 0 ? (
-        <p>No bills found for this page or no bills available.</p>
+        <div className="panel px-5 py-8 text-center text-sm text-ink-muted">
+          No bills on this page.
+        </div>
       ) : (
         billsByYear.map(([year, yearBills]) => (
-          <section key={year}>
-            <h3 className="mt-7 mb-3 text-base font-semibold">{year}</h3>
-            <div className="card overflow-x-auto">
+          <section key={year} className="mb-7">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="eyebrow">{year}</span>
+              <span className="h-px flex-1 bg-line-soft" aria-hidden="true" />
+            </div>
+            <div className="panel overflow-x-auto">
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>Bill</th>
-                    <th>Amount</th>
                     <th>Due</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th className="num">Amount</th>
+                    <th className="num">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {yearBills.map((bill) => {
-                    const owedByMe =
-                      bill.status !== "paid" && owedBillIds.has(bill.id);
+                    const owedByMe = bill.status !== "paid" && owedBillIds.has(bill.id);
                     const fileHref = bill.pdfPath ? billFileHref(bill.pdfPath) : null;
                     return (
                       <tr key={bill.id}>
                         <td>
-                          <div className="font-semibold">
+                          <div className="font-medium">
                             {bill.typeEmoji} {bill.typeName}
                           </div>
-                          <div className="text-xs text-ink-muted">
-                            {formatBillDate(bill.billDate)}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold">${money(Number(bill.total))}</div>
-                          <div className="text-xs text-ink-muted">
-                            ${money(Number(bill.perPersonCost))} / person
+                          <div className="figure text-xs text-ink-muted">
+                            {formatDayMonth(bill.billDate)}
                           </div>
                         </td>
                         <td>
@@ -121,22 +158,40 @@ export default async function DashboardPage({
                         </td>
                         <td>
                           {owedByMe ? (
-                            <span className="badge badge-unpaid" aria-label="Unpaid by you">
+                            <span className="tag tag-unpaid" aria-label="Unpaid by you">
                               Unpaid
                             </span>
                           ) : (
-                            <span className="badge badge-paid" aria-label="Paid by you">
+                            <span className="tag tag-paid" aria-label="Paid by you">
                               Paid
                             </span>
                           )}
                         </td>
-                        <td>
+                        <td className="num">
+                          <div className="figure font-medium">${money(Number(bill.total))}</div>
+                          <div className="figure text-xs text-ink-muted">
+                            ${money(Number(bill.perPersonCost))} ea
+                          </div>
+                        </td>
+                        <td className="num">
                           {fileHref ? (
-                            <div className="flex gap-1.5">
-                              <a href={fileHref} target="_blank" className="btn-icon" title="View bill" aria-label={`View bill ${bill.id}`}>
+                            <div className="flex justify-end gap-1.5">
+                              <a
+                                href={fileHref}
+                                target="_blank"
+                                className="btn-icon"
+                                title="View bill"
+                                aria-label={`View ${bill.typeName} bill`}
+                              >
                                 <EyeIcon />
                               </a>
-                              <a href={fileHref} download className="btn-icon" title="Download bill" aria-label={`Download bill ${bill.id}`}>
+                              <a
+                                href={fileHref}
+                                download
+                                className="btn-icon"
+                                title="Download bill"
+                                aria-label={`Download ${bill.typeName} bill`}
+                              >
                                 <DownloadIcon />
                               </a>
                             </div>
@@ -155,15 +210,6 @@ export default async function DashboardPage({
       )}
 
       <Pagination currentPage={currentPage} totalPages={totalPages} basePath="/" />
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        <a href="/trends/csv" className="btn btn-outline btn-sm">
-          Export CSV
-        </a>
-        <a href="webcal://utilities.aaronperkel.com/cal.ics" className="btn btn-outline btn-sm">
-          Add to iCal
-        </a>
-      </div>
     </main>
   );
 }

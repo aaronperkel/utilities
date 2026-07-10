@@ -101,6 +101,23 @@ export async function getUserOwedBillIds(personId: number): Promise<Set<number>>
   return new Set(rows.map((r) => Number(r.billId)));
 }
 
+/** The person's earliest-due unpaid bill (dashboard "next due" cell). */
+export async function getUserNextDue(
+  personId: number,
+): Promise<{ dueDate: string; typeName: string } | null> {
+  const rows = await query<RowDataPacket>(
+    `SELECT b.due_date AS dueDate, t.name AS typeName
+     FROM bill_debts d
+     JOIN bills b ON d.bill_id = b.id
+     JOIN bill_types t ON t.id = b.type_id
+     WHERE d.person_id = ? AND b.status <> 'paid'
+     ORDER BY b.due_date ASC
+     LIMIT 1`,
+    [personId],
+  );
+  return rows[0] ? { dueDate: rows[0].dueDate, typeName: rows[0].typeName } : null;
+}
+
 /** person name → total owed across all unpaid bills (admin "Who Owes What" card). */
 export async function getOwedAmounts(): Promise<{ name: string; amount: number }[]> {
   const rows = await query<RowDataPacket>(
