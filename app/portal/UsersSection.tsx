@@ -4,11 +4,11 @@ import { useState } from "react";
 import { removePerson, savePerson } from "@/app/portal/actions";
 
 export interface PersonDetail {
-  personID: number;
-  personName: string;
+  id: number;
+  name: string;
   uid: string | null;
   email: string | null;
-  is_admin: number;
+  isAdmin: number;
 }
 
 type ModalState =
@@ -34,7 +34,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
           <thead>
             <tr>
               <th>Name</th>
-              <th>NetID</th>
+              <th>Login ID</th>
               <th>Email</th>
               <th>Admin</th>
               <th>Actions</th>
@@ -42,12 +42,12 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
           </thead>
           <tbody>
             {people.map((p) => (
-              <tr key={p.personID}>
-                <td className="font-semibold">{p.personName}</td>
+              <tr key={p.id}>
+                <td className="font-semibold">{p.name}</td>
                 <td className="text-ink-muted">{p.uid ?? ""}</td>
                 <td className="text-ink-muted">{p.email ?? ""}</td>
                 <td>
-                  {p.is_admin ? (
+                  {p.isAdmin ? (
                     <span className="badge badge-paid">Admin</span>
                   ) : (
                     <span className="text-ink-muted">—</span>
@@ -65,11 +65,11 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
                     <form
                       action={removePerson}
                       onSubmit={(e) => {
-                        if (!confirm(`Remove ${p.personName}?`)) e.preventDefault();
+                        if (!confirm(`Remove ${p.name}?`)) e.preventDefault();
                       }}
                       className="inline"
                     >
-                      <input type="hidden" name="person_id" value={p.personID} />
+                      <input type="hidden" name="person_id" value={p.id} />
                       <button type="submit" className="btn btn-outline btn-sm">
                         Remove
                       </button>
@@ -102,7 +102,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
             </h3>
             <form action={savePerson}>
               <input type="hidden" name="person_action" value={editing ? "edit" : "add"} />
-              {editing && <input type="hidden" name="person_id" value={editing.personID} />}
+              {editing && <input type="hidden" name="person_id" value={editing.id} />}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="field-label" htmlFor="person_name">Name</label>
@@ -110,13 +110,13 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
                     className="field-input"
                     id="person_name"
                     name="person_name"
-                    defaultValue={editing?.personName ?? ""}
+                    defaultValue={editing?.name ?? ""}
                     required
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="field-label" htmlFor="person_uid">UVM NetID</label>
+                  <label className="field-label" htmlFor="person_uid">Login ID</label>
                   <input
                     className="field-input"
                     id="person_uid"
@@ -143,7 +143,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
                   name="person_is_admin"
                   value="1"
                   className="accent-[#3b82f6]"
-                  defaultChecked={!!editing?.is_admin}
+                  defaultChecked={!!editing?.isAdmin}
                 />
                 <span>Admin access</span>
               </label>

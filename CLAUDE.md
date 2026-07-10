@@ -9,10 +9,11 @@ A Next.js 15 (App Router) + TypeScript + Tailwind v4 dashboard for managing shar
 ## Commands
 
 ```bash
-npm run dev              # dev server (needs UVM network/VPN for the DB)
+npm run dev              # dev server
 npm run build            # production build + typecheck — the main verification gate
 npm run start            # serve the production build
 npm run send-reminders   # cron reminder script (tsx scripts/send-reminders.ts)
+npm run migrate-to-tidb  # one-time webdb → TiDB data migration (needs UVM VPN + SRC_DB_* env)
 ```
 
 There is no test suite; `npm run build` (which typechecks) plus hitting routes against the live DB is the verification path.
@@ -21,31 +22,31 @@ There is no test suite; `npm run build` (which typechecks) plus hitting routes a
 
 Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BILLS_DIR` (PDF storage, defaults to `./bill-pdfs`), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
 
-The MySQL DB (`webdb.uvm.edu`) is shared with the still-deployed PHP site and only reachable from the UVM network.
+The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000, reachable from anywhere). The legacy copy on `webdb.uvm.edu` (UVM-network-only, shared with the retired PHP site) is frozen at migration time; `scripts/migrate-to-tidb.ts` did the one-time copy and rename.
 
 ## Architecture
 
 ### Auth flow
 
-Interim passphrase gate (UVM CAS was removed when the site moved to Vercel — no UVM-network dependencies; the CAS implementation is in git history if ever needed): `middleware.ts` requires a valid session cookie for everything except `/login`, `/cal.ics`, `/api/unpaid`, `/no-access`, and static assets, and redirects to `/login`. The login form (`app/login/`) checks the passphrase against `SITE_PASSPHRASE` (timing-safe) and sets a 30-day jose-signed cookie whose uid is `SITE_OWNER_UID` (default `aperkel`). Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the uid against `tblPeople.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting). The root layout's `getCurrentPerson()` returns null without a DB round-trip when logged out, so `/login` renders even if the DB is unreachable.
+Interim passphrase gate (UVM CAS was removed when the site moved to Vercel — no UVM-network dependencies; the CAS implementation is in git history if ever needed): `middleware.ts` requires a valid session cookie for everything except `/login`, `/cal.ics`, `/api/unpaid`, `/no-access`, and static assets, and redirects to `/login`. The login form (`app/login/`) checks the passphrase against `SITE_PASSPHRASE` (timing-safe) and sets a 30-day jose-signed cookie whose uid is `SITE_OWNER_UID` (default `aperkel`). Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the uid against `people.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting). The root layout's `getCurrentPerson()` returns null without a DB round-trip when logged out, so `/login` renders even if the DB is unreachable.
 
 ### Database
 
-Five tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers):
+Five tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
 
-- `tblPeople` (`personID`, `personName`, `uid` = NetID, `email`, `is_admin`)
-- `tblUtilities` (`pmkBillID`, `fldDate`, `fldItem`, `fldTotal`, `fldCost` = per-person share, `fldDue`, `fldStatus`, `fldView` = PDF path)
-- `tblBillOwes` — junction: who still owes; **rows are deleted as people pay**
-- `tblBillTypes` (`typeName`, `typeEmoji`, `processingFee`) — drives the add-bill dropdown, emoji display, and fee math
-- `tblRentConfig` — single-row rent amount + lease range for the calendar feed
+- `people` (`id`, `name`, `uid` = login id, `email`, `is_admin`)
+- `bills` (`id`, `type_id` → `bill_types`, `bill_date`, `due_date`, `total`, `per_person_cost`, `status` enum `'unpaid'|'paid'`, `pdf_path`)
+- `bill_debts` (`bill_id`, `person_id`) — junction: who still owes; **rows are deleted as people pay**
+- `bill_types` (`id`, `name`, `emoji`, `processing_fee`) — drives the add-bill dropdown, emoji display, and fee math
+- `rent_config` — single-row rent amount + lease range for the calendar feed
 
-`fldStatus` (`Paid`/`Unpaid`) is the bill's global status; a bill flips to `Paid` only when nobody is left in `tblBillOwes` (see `updateOwes` in `app/portal/actions.ts`, transactional). Bill math: `total = amount + processingFee`, `cost = round(total / peopleCount, 2)`.
+**No FK constraints** (experimental on TiDB): integrity is app-level — `removePerson` deletes the person's `bill_debts` rows, `removeBillType` refuses while bills reference the type. `status` is the bill's global state; a bill flips to `'paid'` only when nobody is left in `bill_debts` (see `updateOwes` in `app/portal/actions.ts`, transactional). Bill math: `total = amount + processing_fee`, `per_person_cost = round(total / peopleCount, 2)`. SQL aliases map snake_case columns to camelCase TS fields (`per_person_cost AS perPersonCost`); bill queries join `bill_types` so each `Bill` carries `typeName`/`typeEmoji`.
 
-The legacy `schema.sql` (`git show php-final:schema.sql`) is stale — missing `tblBillTypes` and the `uid`/`email`/`is_admin` columns.
+The pre-migration schemas are history only: `git show php-final:schema.sql` (stale even for the PHP era) and the legacy `tblPeople`/`tblUtilities`/`tblBillOwes`/`tblBillTypes`/`tblRentConfig` names that `scripts/migrate-to-tidb.ts` maps from.
 
 ### Bill PDFs
 
-Stored under `BILLS_DIR` (`bill-pdfs/{year}/{type}/{name}.pdf`, gitignored, outside `public/`), served auth-gated by `app/files/[...path]/route.ts`. **Legacy quirk:** `fldView` values keep the old `public/2026/Gas/x.pdf` format (the shared DB still serves the PHP site); `billFileHref()` strips the `public/` prefix to build `/files/...` URLs, and new uploads write `fldView` in the same legacy format.
+Stored under `BILLS_DIR` (`bill-pdfs/{year}/{type}/{name}.pdf`, gitignored, outside `public/`), served auth-gated by `app/files/[...path]/route.ts`. `pdf_path` values are BILLS_DIR-relative (`2026/Gas/x.pdf`); the migration stripped the PHP-era `public/` prefix, and `billFileHref()` just prepends `/files/`.
 
 ### Key surfaces
 
@@ -67,4 +68,4 @@ Tailwind v4 (CSS-first config in `app/globals.css`): dark navy theme (`--color-p
 
 ## Deployment
 
-Deployed on Vercel at `utilities.aaronperkel.com` (July 2026), but **not yet functional there**: the MySQL DB is UVM-network-only, so Vercel cannot reach it — every DB-backed page fails until the data moves to an externally reachable host. Local bill-PDF storage (`BILLS_DIR`) also doesn't persist on Vercel's ephemeral filesystem and needs blob storage. The PHP predecessor on UVM silk remains the real production site until both are resolved.
+Deployed on Vercel at `utilities.aaronperkel.com` (July 2026). The DB is TiDB Cloud Serverless, reachable from Vercel — set the `DB_*` env vars in the Vercel project. Remaining gap: bill-PDF storage (`BILLS_DIR`) doesn't persist on Vercel's ephemeral filesystem — existing PDFs and new uploads need blob storage (e.g. Vercel Blob) before the add-bill flow works in production. The PHP predecessor on UVM silk is retired; its webdb data is frozen as of the TiDB migration.

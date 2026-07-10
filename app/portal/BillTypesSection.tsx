@@ -4,9 +4,9 @@ import { useState } from "react";
 import { removeBillType, saveBillType } from "@/app/portal/actions";
 
 export interface BillTypeDetail {
-  typeID: number;
-  typeName: string;
-  typeEmoji: string;
+  id: number;
+  name: string;
+  emoji: string;
   processingFee: number;
 }
 
@@ -40,9 +40,9 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
           </thead>
           <tbody>
             {billTypes.map((bt) => (
-              <tr key={bt.typeID}>
-                <td className="font-semibold">{bt.typeName}</td>
-                <td>{bt.typeEmoji}</td>
+              <tr key={bt.id}>
+                <td className="font-semibold">{bt.name}</td>
+                <td>{bt.emoji}</td>
                 <td className="text-ink-muted">${Number(bt.processingFee).toFixed(2)}</td>
                 <td>
                   <div className="flex gap-1.5">
@@ -56,11 +56,11 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
                     <form
                       action={removeBillType}
                       onSubmit={(e) => {
-                        if (!confirm(`Remove ${bt.typeName}?`)) e.preventDefault();
+                        if (!confirm(`Remove ${bt.name}?`)) e.preventDefault();
                       }}
                       className="inline"
                     >
-                      <input type="hidden" name="billtype_id" value={bt.typeID} />
+                      <input type="hidden" name="billtype_id" value={bt.id} />
                       <button type="submit" className="btn btn-outline btn-sm">
                         Remove
                       </button>
@@ -93,7 +93,7 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
             </h3>
             <form action={saveBillType}>
               <input type="hidden" name="billtype_action" value={editing ? "edit" : "add"} />
-              {editing && <input type="hidden" name="billtype_id" value={editing.typeID} />}
+              {editing && <input type="hidden" name="billtype_id" value={editing.id} />}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="field-label" htmlFor="billtype_name">Name</label>
@@ -102,7 +102,7 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
                     id="billtype_name"
                     name="billtype_name"
                     placeholder="e.g. Water"
-                    defaultValue={editing?.typeName ?? ""}
+                    defaultValue={editing?.name ?? ""}
                     required
                     autoFocus
                   />
@@ -114,7 +114,7 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
                     id="billtype_emoji"
                     name="billtype_emoji"
                     placeholder="e.g. 💧"
-                    defaultValue={editing?.typeEmoji ?? ""}
+                    defaultValue={editing?.emoji ?? ""}
                     required
                   />
                 </div>

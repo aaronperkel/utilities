@@ -3,10 +3,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import {
   Bill,
-  billEmoji,
   billFileHref,
   getBillsForPage,
-  getEmojiMap,
   getTotalBillCount,
   getUserOwedAmount,
   getUserOwedBillIds,
@@ -31,7 +29,7 @@ function money(n: number): string {
 function groupBillsByYear(bills: Bill[]): [string, Bill[]][] {
   const byYear = new Map<string, Bill[]>();
   for (const bill of bills) {
-    const year = bill.fldDate.slice(0, 4);
+    const year = bill.billDate.slice(0, 4);
     if (!byYear.has(year)) byYear.set(year, []);
     byYear.get(year)!.push(bill);
   }
@@ -49,11 +47,10 @@ export default async function DashboardPage({
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
   let currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [owedAmount, owedBillIds, totalBills, emojiMap] = await Promise.all([
-    getUserOwedAmount(person.personName),
-    getUserOwedBillIds(person.personName),
+  const [owedAmount, owedBillIds, totalBills] = await Promise.all([
+    getUserOwedAmount(person.id),
+    getUserOwedBillIds(person.id),
     getTotalBillCount(),
-    getEmojiMap(),
   ]);
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
@@ -66,7 +63,7 @@ export default async function DashboardPage({
     <main>
       <div className="card mb-8 flex flex-wrap items-center justify-between gap-6 px-6 py-5">
         <div>
-          <h2 className="text-lg font-bold">Welcome, {person.personName}</h2>
+          <h2 className="text-lg font-bold">Welcome, {person.name}</h2>
           <p className="text-ink-muted text-sm">Your current outstanding balance</p>
         </div>
         <div className="text-right">
@@ -101,26 +98,26 @@ export default async function DashboardPage({
                 <tbody>
                   {yearBills.map((bill) => {
                     const owedByMe =
-                      bill.fldStatus !== "Paid" && owedBillIds.has(bill.pmkBillID);
-                    const fileHref = billFileHref(bill.fldView);
+                      bill.status !== "paid" && owedBillIds.has(bill.id);
+                    const fileHref = bill.pdfPath ? billFileHref(bill.pdfPath) : null;
                     return (
-                      <tr key={bill.pmkBillID}>
+                      <tr key={bill.id}>
                         <td>
                           <div className="font-semibold">
-                            {billEmoji(emojiMap, bill.fldItem)} {bill.fldItem}
+                            {bill.typeEmoji} {bill.typeName}
                           </div>
                           <div className="text-xs text-ink-muted">
-                            {formatBillDate(bill.fldDate)}
+                            {formatBillDate(bill.billDate)}
                           </div>
                         </td>
                         <td>
-                          <div className="font-semibold">${money(Number(bill.fldTotal))}</div>
+                          <div className="font-semibold">${money(Number(bill.total))}</div>
                           <div className="text-xs text-ink-muted">
-                            ${money(Number(bill.fldCost))} / person
+                            ${money(Number(bill.perPersonCost))} / person
                           </div>
                         </td>
                         <td>
-                          <DueChip due={bill.fldDue} paid={!owedByMe} />
+                          <DueChip due={bill.dueDate} paid={!owedByMe} />
                         </td>
                         <td>
                           {owedByMe ? (
@@ -134,14 +131,18 @@ export default async function DashboardPage({
                           )}
                         </td>
                         <td>
-                          <div className="flex gap-1.5">
-                            <a href={fileHref} target="_blank" className="btn-icon" title="View bill" aria-label={`View bill ${bill.pmkBillID}`}>
-                              <EyeIcon />
-                            </a>
-                            <a href={fileHref} download className="btn-icon" title="Download bill" aria-label={`Download bill ${bill.pmkBillID}`}>
-                              <DownloadIcon />
-                            </a>
-                          </div>
+                          {fileHref ? (
+                            <div className="flex gap-1.5">
+                              <a href={fileHref} target="_blank" className="btn-icon" title="View bill" aria-label={`View bill ${bill.id}`}>
+                                <EyeIcon />
+                              </a>
+                              <a href={fileHref} download className="btn-icon" title="Download bill" aria-label={`Download bill ${bill.id}`}>
+                                <DownloadIcon />
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-ink-muted">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -159,7 +160,7 @@ export default async function DashboardPage({
         <a href="/trends/csv" className="btn btn-outline btn-sm">
           Export CSV
         </a>
-        <a href="webcal://utilities.aperkel.w3.uvm.edu/cal.ics" className="btn btn-outline btn-sm">
+        <a href="webcal://utilities.aaronperkel.com/cal.ics" className="btn btn-outline btn-sm">
           Add to iCal
         </a>
       </div>

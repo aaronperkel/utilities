@@ -5,7 +5,7 @@ import { getCurrentPerson } from "@/lib/auth";
 
 const BILLS_DIR = process.env.BILLS_DIR ?? path.join(process.cwd(), "bill-pdfs");
 
-// Auth-gated bill PDF serving. fldView paths like "public/2026/Gas/0623.pdf"
+// Auth-gated bill PDF serving. bills.pdf_path values like "2026/Gas/0623.pdf"
 // map to /files/2026/Gas/0623.pdf, read from BILLS_DIR (outside any public dir).
 export async function GET(
   _req: NextRequest,

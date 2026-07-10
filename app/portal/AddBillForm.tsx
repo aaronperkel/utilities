@@ -4,8 +4,8 @@ import { useActionState, useMemo, useState } from "react";
 import { addBill, AddBillState } from "@/app/portal/actions";
 
 interface TypeOption {
-  typeName: string;
-  typeEmoji: string;
+  name: string;
+  emoji: string;
   processingFee: number;
 }
 
@@ -20,12 +20,12 @@ export default function AddBillForm({
     addBill,
     { errors: [] },
   );
-  const [item, setItem] = useState("");
+  const [type, setType] = useState("");
   const [amount, setAmount] = useState("");
 
   const fee = useMemo(
-    () => billTypes.find((t) => t.typeName === item)?.processingFee ?? 0,
-    [billTypes, item],
+    () => billTypes.find((t) => t.name === type)?.processingFee ?? 0,
+    [billTypes, type],
   );
   const base = parseFloat(amount) || 0;
   const total = base + Number(fee);
@@ -47,23 +47,23 @@ export default function AddBillForm({
       <form action={formAction}>
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className="field-label" htmlFor="item">
+            <label className="field-label" htmlFor="type">
               Type
             </label>
             <select
-              id="item"
-              name="item"
+              id="type"
+              name="type"
               required
               className="field-input"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
+              value={type}
+              onChange={(e) => setType(e.target.value)}
             >
               <option value="" disabled>
                 Select...
               </option>
               {billTypes.map((t) => (
-                <option key={t.typeName} value={t.typeName}>
-                  {t.typeEmoji} {t.typeName}
+                <option key={t.name} value={t.name}>
+                  {t.emoji} {t.name}
                 </option>
               ))}
             </select>

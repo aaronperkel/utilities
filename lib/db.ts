@@ -5,19 +5,22 @@ let pool: Pool | undefined;
 
 export function getPool(): Pool {
   if (!pool) {
-    const useSsl = (process.env.DB_USE_SSL ?? "false").toLowerCase() === "true";
+    const useSsl = (process.env.DB_USE_SSL ?? "true").toLowerCase() === "true";
     const caPath = process.env.DB_SSL_CA_PATH;
 
-    let ssl: { ca: Buffer } | { rejectUnauthorized: false } | undefined;
+    // TiDB Cloud Serverless requires TLS; its certs chain to public CAs, so
+    // the default verifying config works without a CA file.
+    let ssl: { ca: Buffer } | { minVersion: string; rejectUnauthorized: true } | undefined;
     if (useSsl) {
       ssl =
         caPath && fs.existsSync(caPath)
           ? { ca: fs.readFileSync(caPath) }
-          : { rejectUnauthorized: false };
+          : { minVersion: "TLSv1.2", rejectUnauthorized: true };
     }
 
     pool = mysql.createPool({
-      host: process.env.DB_HOST ?? "webdb.uvm.edu",
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT ?? 4000),
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
       password: process.env.DB_PASS,

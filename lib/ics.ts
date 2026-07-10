@@ -4,12 +4,6 @@ import { getRentConfig } from "@/lib/bills";
 
 const EOL = "\r\n";
 
-const EMOJI: Record<string, string> = {
-  Electric: "⚡",
-  Gas: "🔥",
-  Internet: "🌐",
-};
-
 /** Build the iCalendar feed: monthly rent event + one all-day event per bill due date. */
 export async function buildIcs(): Promise<string> {
   const dtstamp =
@@ -20,9 +14,9 @@ export async function buildIcs(): Promise<string> {
     `X-WR-CALNAME:77 N Union Utilities${EOL}`;
 
   const rent = await getRentConfig();
-  if (rent?.startDate && rent?.endDate) {
-    const start = rent.startDate.replaceAll("-", "");
-    const end = rent.endDate.replaceAll("-", "");
+  if (rent?.leaseStart && rent?.leaseEnd) {
+    const start = rent.leaseStart.replaceAll("-", "");
+    const end = rent.leaseEnd.replaceAll("-", "");
     ics +=
       `BEGIN:VEVENT${EOL}UID:RentDueRecurring@77nunion${EOL}DTSTAMP:${dtstamp}${EOL}` +
       `DTSTART;VALUE=DATE:${start}${EOL}RRULE:FREQ=MONTHLY;UNTIL=${end};BYMONTHDAY=1${EOL}` +
@@ -30,20 +24,21 @@ export async function buildIcs(): Promise<string> {
   }
 
   const bills = await query<RowDataPacket>(
-    "SELECT fldDue, fldStatus, fldItem FROM tblUtilities",
+    `SELECT b.due_date AS dueDate, b.status, t.name AS typeName, t.emoji
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id`,
   );
   for (const row of bills) {
-    if (!row.fldDue) continue;
-    const due = String(row.fldDue).replaceAll("-", "");
-    const paidFlag = String(row.fldStatus).toLowerCase() === "paid" ? " - PAID" : "";
-    const emoji = EMOJI[row.fldItem] ?? "";
+    if (!row.dueDate) continue;
+    const due = String(row.dueDate).replaceAll("-", "");
+    const paidFlag = row.status === "paid" ? " - PAID" : "";
     ics +=
       `BEGIN:VEVENT${EOL}` +
-      `UID:${row.fldItem}-${due}@77nunion${EOL}` +
+      `UID:${row.typeName}-${due}@77nunion${EOL}` +
       `DTSTAMP:${dtstamp}${EOL}` +
       `DTSTART;VALUE=DATE:${due}${EOL}` +
       `DTEND;VALUE=DATE:${due}${EOL}` +
-      `SUMMARY:${emoji} ${row.fldItem} Bill Due${paidFlag}${EOL}` +
+      `SUMMARY:${row.emoji} ${row.typeName} Bill Due${paidFlag}${EOL}` +
       `END:VEVENT${EOL}`;
   }
 

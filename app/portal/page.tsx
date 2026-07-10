@@ -3,11 +3,9 @@ import { RowDataPacket } from "mysql2";
 import { requireAdmin } from "@/lib/auth";
 import { query } from "@/lib/db";
 import {
-  billEmoji,
   billFileHref,
   getBillsForPage,
   getBillTypes,
-  getEmojiMap,
   getOwedAmounts,
   getRentConfig,
   getTotalBillCount,
@@ -51,20 +49,19 @@ export default async function PortalPage({
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
   const currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [billTypes, owedAmounts, totalBills, rentConfig, emojiMap] = await Promise.all([
+  const [billTypes, owedAmounts, totalBills, rentConfig] = await Promise.all([
     getBillTypes(),
     getOwedAmounts(),
     getTotalBillCount(),
     getRentConfig(),
-    getEmojiMap(),
   ]);
 
   const peopleDetails = await query<RowDataPacket>(
-    "SELECT personID, personName, uid, email, is_admin FROM tblPeople ORDER BY personName ASC",
+    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
   );
   const allPeople = peopleDetails.map((p) => ({
-    personID: Number(p.personID),
-    personName: String(p.personName),
+    id: Number(p.id),
+    name: String(p.name),
   }));
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
@@ -75,15 +72,16 @@ export default async function PortalPage({
   // One query for "who still owes" across every bill on this page
   const owingByBill = new Map<number, Set<number>>();
   if (bills.length > 0) {
-    const ids = bills.map((b) => b.pmkBillID);
+    const ids = bills.map((b) => b.id);
     const owes = await query<RowDataPacket>(
-      `SELECT billID, personID FROM tblBillOwes WHERE billID IN (${ids.map(() => "?").join(",")})`,
+      `SELECT bill_id AS billId, person_id AS personId
+       FROM bill_debts WHERE bill_id IN (${ids.map(() => "?").join(",")})`,
       ids,
     );
     for (const row of owes) {
-      const billId = Number(row.billID);
+      const billId = Number(row.billId);
       if (!owingByBill.has(billId)) owingByBill.set(billId, new Set());
-      owingByBill.get(billId)!.add(Number(row.personID));
+      owingByBill.get(billId)!.add(Number(row.personId));
     }
   }
 
@@ -120,8 +118,8 @@ export default async function PortalPage({
         <h2 className="section-title">Add New Bill</h2>
         <AddBillForm
           billTypes={billTypes.map((t) => ({
-            typeName: t.typeName,
-            typeEmoji: t.typeEmoji,
+            name: t.name,
+            emoji: t.emoji,
             processingFee: Number(t.processingFee),
           }))}
           peopleCount={allPeople.length}
@@ -148,37 +146,37 @@ export default async function PortalPage({
               </tr>
             ) : (
               bills.map((bill) => {
-                const owing = owingByBill.get(bill.pmkBillID) ?? new Set<number>();
+                const owing = owingByBill.get(bill.id) ?? new Set<number>();
                 const paidIds = allPeople
-                  .filter((p) => bill.fldStatus === "Paid" || !owing.has(p.personID))
-                  .map((p) => p.personID);
-                const fileHref = billFileHref(bill.fldView);
+                  .filter((p) => bill.status === "paid" || !owing.has(p.id))
+                  .map((p) => p.id);
+                const fileHref = bill.pdfPath ? billFileHref(bill.pdfPath) : null;
                 return (
-                  <tr key={bill.pmkBillID}>
+                  <tr key={bill.id}>
                     <td>
                       <div className="font-semibold">
-                        {billEmoji(emojiMap, bill.fldItem)} {bill.fldItem}
+                        {bill.typeEmoji} {bill.typeName}
                       </div>
-                      <div className="text-xs text-ink-muted">{formatBillDate(bill.fldDate)}</div>
+                      <div className="text-xs text-ink-muted">{formatBillDate(bill.billDate)}</div>
                     </td>
                     <td>
-                      <div className="font-semibold">${money(Number(bill.fldTotal))}</div>
+                      <div className="font-semibold">${money(Number(bill.total))}</div>
                       <div className="text-xs text-ink-muted">
-                        ${money(Number(bill.fldCost))} / person
+                        ${money(Number(bill.perPersonCost))} / person
                       </div>
                     </td>
                     <td>
-                      <DueChip due={bill.fldDue} paid={bill.fldStatus === "Paid"} />
+                      <DueChip due={bill.dueDate} paid={bill.status === "paid"} />
                     </td>
                     <td>
-                      <span className={`badge ${bill.fldStatus === "Paid" ? "badge-paid" : "badge-unpaid"}`}>
-                        {bill.fldStatus}
+                      <span className={`badge ${bill.status === "paid" ? "badge-paid" : "badge-unpaid"}`}>
+                        {bill.status === "paid" ? "Paid" : "Unpaid"}
                       </span>
                     </td>
                     <td>
                       {allPeople.length > 0 ? (
                         <PaymentCheckboxes
-                          billId={bill.pmkBillID}
+                          billId={bill.id}
                           people={allPeople}
                           initialPaidIds={paidIds}
                         />
@@ -188,13 +186,17 @@ export default async function PortalPage({
                     </td>
                     <td>
                       <div className="flex gap-1.5">
-                        <a href={fileHref} target="_blank" className="btn-icon" title="View bill">
-                          <EyeIcon />
-                        </a>
-                        <a href={fileHref} download className="btn-icon" title="Download bill">
-                          <DownloadIcon />
-                        </a>
-                        {bill.fldStatus !== "Paid" && <ReminderButton billId={bill.pmkBillID} />}
+                        {fileHref && (
+                          <>
+                            <a href={fileHref} target="_blank" className="btn-icon" title="View bill">
+                              <EyeIcon />
+                            </a>
+                            <a href={fileHref} download className="btn-icon" title="Download bill">
+                              <DownloadIcon />
+                            </a>
+                          </>
+                        )}
+                        {bill.status !== "paid" && <ReminderButton billId={bill.id} />}
                       </div>
                     </td>
                   </tr>
@@ -209,9 +211,9 @@ export default async function PortalPage({
 
       <BillTypesSection
         billTypes={billTypes.map((t) => ({
-          typeID: t.typeID,
-          typeName: t.typeName,
-          typeEmoji: t.typeEmoji,
+          id: t.id,
+          name: t.name,
+          emoji: t.emoji,
           processingFee: Number(t.processingFee),
         }))}
       />
@@ -233,7 +235,7 @@ export default async function PortalPage({
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  defaultValue={rentConfig ? Number(rentConfig.rentAmount).toFixed(2) : ""}
+                  defaultValue={rentConfig ? Number(rentConfig.monthlyRent).toFixed(2) : ""}
                   required
                 />
               </div>
@@ -246,7 +248,7 @@ export default async function PortalPage({
                   type="date"
                   id="rent_start"
                   name="rent_start"
-                  defaultValue={rentConfig?.startDate ?? ""}
+                  defaultValue={rentConfig?.leaseStart ?? ""}
                   required
                 />
               </div>
@@ -259,7 +261,7 @@ export default async function PortalPage({
                   type="date"
                   id="rent_end"
                   name="rent_end"
-                  defaultValue={rentConfig?.endDate ?? ""}
+                  defaultValue={rentConfig?.leaseEnd ?? ""}
                   required
                 />
               </div>
@@ -270,8 +272,8 @@ export default async function PortalPage({
               </button>
               {rentConfig && (
                 <span className="text-sm text-ink-muted">
-                  Current: ${money(Number(rentConfig.rentAmount))}/mo (
-                  {formatMonthYear(rentConfig.startDate)} – {formatMonthYear(rentConfig.endDate)})
+                  Current: ${money(Number(rentConfig.monthlyRent))}/mo (
+                  {formatMonthYear(rentConfig.leaseStart)} – {formatMonthYear(rentConfig.leaseEnd)})
                 </span>
               )}
             </div>

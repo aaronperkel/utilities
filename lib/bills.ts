@@ -2,61 +2,68 @@ import { RowDataPacket } from "mysql2";
 import { query } from "@/lib/db";
 
 export interface Bill extends RowDataPacket {
-  pmkBillID: number;
-  fldDate: string;
-  fldItem: string;
-  fldTotal: number;
-  fldCost: number;
-  fldDue: string;
-  fldStatus: "Paid" | "Unpaid";
-  fldView: string;
+  id: number;
+  typeName: string;
+  typeEmoji: string;
+  billDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD
+  total: number;
+  perPersonCost: number;
+  status: "paid" | "unpaid";
+  pdfPath: string | null;
 }
 
 export interface BillType extends RowDataPacket {
-  typeID: number;
-  typeName: string;
-  typeEmoji: string;
+  id: number;
+  name: string;
+  emoji: string;
   processingFee: number;
 }
 
 export interface RentConfig extends RowDataPacket {
-  rentAmount: number;
-  startDate: string;
-  endDate: string;
+  monthlyRent: number;
+  leaseStart: string;
+  leaseEnd: string;
 }
+
+const BILL_SELECT = `
+  SELECT b.id, t.name AS typeName, t.emoji AS typeEmoji,
+         b.bill_date AS billDate, b.due_date AS dueDate,
+         b.total, b.per_person_cost AS perPersonCost, b.status,
+         b.pdf_path AS pdfPath
+  FROM bills b
+  JOIN bill_types t ON t.id = b.type_id`;
 
 export async function getBillTypes(): Promise<BillType[]> {
   return query<BillType>(
-    "SELECT typeID, typeName, typeEmoji, processingFee FROM tblBillTypes ORDER BY typeName",
+    "SELECT id, name, emoji, processing_fee AS processingFee FROM bill_types ORDER BY name",
   );
 }
 
-export async function getBillTypeFee(typeName: string): Promise<number> {
-  const rows = await query<RowDataPacket>(
-    "SELECT processingFee FROM tblBillTypes WHERE typeName = ?",
-    [typeName],
+export async function getBillTypeByName(name: string): Promise<BillType | null> {
+  const rows = await query<BillType>(
+    "SELECT id, name, emoji, processing_fee AS processingFee FROM bill_types WHERE name = ?",
+    [name],
   );
-  return Number(rows[0]?.processingFee ?? 0);
+  return rows[0] ?? null;
 }
 
-/** typeName → emoji map, with the PHP fallback of 📄 handled by the caller default. */
+/** type name → emoji map, with the 📄 fallback handled by the caller default. */
 export async function getEmojiMap(): Promise<Record<string, string>> {
   try {
-    const rows = await query<RowDataPacket>(
-      "SELECT typeName, typeEmoji FROM tblBillTypes",
-    );
-    return Object.fromEntries(rows.map((r) => [r.typeName, r.typeEmoji]));
+    const rows = await query<RowDataPacket>("SELECT name, emoji FROM bill_types");
+    return Object.fromEntries(rows.map((r) => [r.name, r.emoji]));
   } catch {
     return {};
   }
 }
 
-export function billEmoji(map: Record<string, string>, item: string): string {
-  return map[item] ?? "📄";
+export function billEmoji(map: Record<string, string>, typeName: string): string {
+  return map[typeName] ?? "📄";
 }
 
 export async function getTotalBillCount(): Promise<number> {
-  const rows = await query<RowDataPacket>("SELECT COUNT(*) AS n FROM tblUtilities");
+  const rows = await query<RowDataPacket>("SELECT COUNT(*) AS n FROM bills");
   return Number(rows[0].n);
 }
 
@@ -64,76 +71,63 @@ export async function getBillsForPage(limit: number, offset: number): Promise<Bi
   const safeLimit = Math.max(1, Math.trunc(limit));
   const safeOffset = Math.max(0, Math.trunc(offset));
   return query<Bill>(
-    `SELECT pmkBillID, fldDate, fldItem, fldTotal, fldCost, fldDue, fldStatus, fldView
-     FROM tblUtilities
-     ORDER BY fldDate DESC
+    `${BILL_SELECT}
+     ORDER BY b.bill_date DESC
      LIMIT ${safeLimit} OFFSET ${safeOffset}`,
   );
 }
 
 /** Total outstanding for one person across unpaid bills. */
-export async function getUserOwedAmount(personName: string): Promise<number> {
+export async function getUserOwedAmount(personId: number): Promise<number> {
   const rows = await query<RowDataPacket>(
-    `SELECT SUM(u.fldCost) AS owed
-     FROM tblUtilities u
-     JOIN tblBillOwes bo ON u.pmkBillID = bo.billID
-     JOIN tblPeople p ON bo.personID = p.personID
-     WHERE p.personName = ? AND u.fldStatus <> 'Paid'`,
-    [personName],
+    `SELECT SUM(b.per_person_cost) AS owed
+     FROM bills b
+     JOIN bill_debts d ON b.id = d.bill_id
+     WHERE d.person_id = ? AND b.status <> 'paid'`,
+    [personId],
   );
   return Number(rows[0]?.owed ?? 0);
 }
 
-/** Bill IDs the person still owes on (bills not globally Paid). */
-export async function getUserOwedBillIds(personName: string): Promise<Set<number>> {
+/** Bill IDs the person still owes on (bills not globally paid). */
+export async function getUserOwedBillIds(personId: number): Promise<Set<number>> {
   const rows = await query<RowDataPacket>(
-    `SELECT bo.billID
-     FROM tblBillOwes bo
-     JOIN tblPeople p ON bo.personID = p.personID
-     JOIN tblUtilities u ON bo.billID = u.pmkBillID
-     WHERE p.personName = ? AND u.fldStatus <> 'Paid'`,
-    [personName],
+    `SELECT d.bill_id AS billId
+     FROM bill_debts d
+     JOIN bills b ON d.bill_id = b.id
+     WHERE d.person_id = ? AND b.status <> 'paid'`,
+    [personId],
   );
-  return new Set(rows.map((r) => Number(r.billID)));
+  return new Set(rows.map((r) => Number(r.billId)));
 }
 
-/** personName → total owed across all unpaid bills (admin "Who Owes What" card). */
+/** person name → total owed across all unpaid bills (admin "Who Owes What" card). */
 export async function getOwedAmounts(): Promise<{ name: string; amount: number }[]> {
   const rows = await query<RowDataPacket>(
-    `SELECT p.personName, SUM(u.fldCost) AS totalOwed
-     FROM tblBillOwes bo
-     JOIN tblUtilities u ON bo.billID = u.pmkBillID
-     JOIN tblPeople p ON bo.personID = p.personID
-     WHERE u.fldStatus = 'Unpaid'
-     GROUP BY p.personName
+    `SELECT p.name, SUM(b.per_person_cost) AS totalOwed
+     FROM bill_debts d
+     JOIN bills b ON d.bill_id = b.id
+     JOIN people p ON d.person_id = p.id
+     WHERE b.status = 'unpaid'
+     GROUP BY p.name
      HAVING totalOwed > 0
-     ORDER BY p.personName`,
+     ORDER BY p.name`,
   );
-  return rows.map((r) => ({ name: r.personName, amount: Number(r.totalOwed) }));
+  return rows.map((r) => ({ name: r.name, amount: Number(r.totalOwed) }));
 }
 
-/** personIDs who still owe for a bill. */
-export async function getOwingPersonIds(billId: number): Promise<Set<number>> {
+export async function getAllPeople(): Promise<{ id: number; name: string }[]> {
   const rows = await query<RowDataPacket>(
-    "SELECT personID FROM tblBillOwes WHERE billID = ?",
-    [billId],
+    "SELECT id, name FROM people ORDER BY name ASC",
   );
-  return new Set(rows.map((r) => Number(r.personID)));
-}
-
-export async function getAllPeople(): Promise<
-  { personID: number; personName: string }[]
-> {
-  const rows = await query<RowDataPacket>(
-    "SELECT personID, personName FROM tblPeople ORDER BY personName ASC",
-  );
-  return rows.map((r) => ({ personID: Number(r.personID), personName: r.personName }));
+  return rows.map((r) => ({ id: Number(r.id), name: r.name }));
 }
 
 export async function getRentConfig(): Promise<RentConfig | null> {
   try {
     const rows = await query<RentConfig>(
-      "SELECT rentAmount, startDate, endDate FROM tblRentConfig ORDER BY id DESC LIMIT 1",
+      `SELECT monthly_rent AS monthlyRent, lease_start AS leaseStart, lease_end AS leaseEnd
+       FROM rent_config ORDER BY id DESC LIMIT 1`,
     );
     return rows[0] ?? null;
   } catch {
@@ -141,7 +135,7 @@ export async function getRentConfig(): Promise<RentConfig | null> {
   }
 }
 
-/** Map a stored fldView path (e.g. "public/2026/Gas/0623.pdf") to the auth-gated file route. */
-export function billFileHref(fldView: string): string {
-  return "/files/" + fldView.replace(/^public\//, "");
+/** Map a stored pdf_path (e.g. "2026/Gas/0623.pdf") to the auth-gated file route. */
+export function billFileHref(pdfPath: string): string {
+  return "/files/" + pdfPath;
 }

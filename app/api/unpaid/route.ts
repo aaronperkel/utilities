@@ -45,21 +45,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const totalRows = await query<RowDataPacket>(
-      `SELECT COALESCE(SUM(u.fldCost),0) AS totalOutstanding
-       FROM tblUtilities u
-       JOIN tblBillOwes bo ON u.pmkBillID = bo.billID
-       WHERE u.fldStatus = 'Unpaid'`,
+      `SELECT COALESCE(SUM(b.per_person_cost),0) AS totalOutstanding
+       FROM bills b
+       JOIN bill_debts d ON b.id = d.bill_id
+       WHERE b.status = 'unpaid'`,
     );
     const totalOutstanding = Number(totalRows[0]?.totalOutstanding ?? 0);
 
     const perPersonRows = await query<RowDataPacket>(
-      `SELECT p.personName, COALESCE(SUM(u.fldCost),0) AS totalOwedByPerson
-       FROM tblUtilities u
-       JOIN tblBillOwes bo ON u.pmkBillID = bo.billID
-       JOIN tblPeople p ON bo.personID = p.personID
-       WHERE u.fldStatus = 'Unpaid'
-       GROUP BY p.personName
-       ORDER BY p.personName`,
+      `SELECT p.name AS personName, COALESCE(SUM(b.per_person_cost),0) AS totalOwedByPerson
+       FROM bills b
+       JOIN bill_debts d ON b.id = d.bill_id
+       JOIN people p ON d.person_id = p.id
+       WHERE b.status = 'unpaid'
+       GROUP BY p.name
+       ORDER BY p.name`,
     );
     const perPerson = perPersonRows.map((r) => ({
       personName: r.personName,
@@ -67,13 +67,14 @@ export async function GET(req: NextRequest) {
     }));
 
     const detailRows = await query<RowDataPacket>(
-      `SELECT u.pmkBillID AS billID, u.fldItem AS item, u.fldTotal AS billTotal,
-              u.fldCost AS perPersonCost, u.fldDue AS dueDate, p.personName AS personOwing
-       FROM tblUtilities u
-       JOIN tblBillOwes bo ON u.pmkBillID = bo.billID
-       JOIN tblPeople p ON bo.personID = p.personID
-       WHERE u.fldStatus = 'Unpaid'
-       ORDER BY u.fldDue, u.pmkBillID, p.personName`,
+      `SELECT b.id AS billID, t.name AS item, b.total AS billTotal,
+              b.per_person_cost AS perPersonCost, b.due_date AS dueDate, p.name AS personOwing
+       FROM bills b
+       JOIN bill_types t ON t.id = b.type_id
+       JOIN bill_debts d ON b.id = d.bill_id
+       JOIN people p ON d.person_id = p.id
+       WHERE b.status = 'unpaid'
+       ORDER BY b.due_date, b.id, p.name`,
     );
     const detail = detailRows.map((r) => ({
       billID: Number(r.billID),

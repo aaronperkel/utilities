@@ -28,10 +28,11 @@ export default async function TrendsPage() {
   const now = new Date();
   const lastYearMonth = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const lastYearRows = await query<RowDataPacket>(
-    `SELECT fldItem, SUM(fldTotal) AS total
-     FROM tblUtilities
-     WHERE DATE_FORMAT(fldDate, '%Y-%m') = ? AND fldItem IN ('Gas','Electric','Internet')
-     GROUP BY fldItem`,
+    `SELECT t.name AS typeName, SUM(b.total) AS total
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     WHERE DATE_FORMAT(b.bill_date, '%Y-%m') = ? AND t.name IN ('Gas','Electric','Internet')
+     GROUP BY typeName`,
     [lastYearMonth],
   );
   const lastYearTotals: Record<string, number | null> = {
@@ -39,31 +40,33 @@ export default async function TrendsPage() {
     Electric: null,
     Internet: null,
   };
-  for (const r of lastYearRows) lastYearTotals[r.fldItem] = Number(r.total);
+  for (const r of lastYearRows) lastYearTotals[r.typeName] = Number(r.total);
 
   // YTD totals
   const ytdRows = await query<RowDataPacket>(
-    `SELECT fldItem, SUM(fldTotal) AS total
-     FROM tblUtilities
-     WHERE YEAR(fldDate) = YEAR(CURDATE())
-     GROUP BY fldItem`,
+    `SELECT t.name AS typeName, SUM(b.total) AS total
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     WHERE YEAR(b.bill_date) = YEAR(CURDATE())
+     GROUP BY typeName`,
   );
   const ytdByItem: Record<string, number> = {};
-  for (const r of ytdRows) ytdByItem[r.fldItem] = Number(r.total);
+  for (const r of ytdRows) ytdByItem[r.typeName] = Number(r.total);
 
   // All-time totals since move-in
   const allTimeRows = await query<RowDataPacket>(
-    `SELECT fldItem, SUM(fldTotal) AS total, MIN(fldDate) AS first_bill
-     FROM tblUtilities
-     GROUP BY fldItem`,
+    `SELECT t.name AS typeName, SUM(b.total) AS total, MIN(b.bill_date) AS firstBill
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     GROUP BY typeName`,
   );
   const allTimeByItem: Record<string, number> = {};
   let allTimeGrand = 0;
   let moveInDate: string | null = null;
   for (const r of allTimeRows) {
-    allTimeByItem[r.fldItem] = Number(r.total);
+    allTimeByItem[r.typeName] = Number(r.total);
     allTimeGrand += Number(r.total);
-    const first = r.first_bill as string | null;
+    const first = r.firstBill as string | null;
     if (first && (!moveInDate || first < moveInDate)) moveInDate = first;
   }
   const moveInYear = moveInDate ? moveInDate.slice(0, 4) : null;

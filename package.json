@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "send-reminders": "tsx scripts/send-reminders.ts"
+    "send-reminders": "tsx scripts/send-reminders.ts",
+    "migrate-to-tidb": "tsx scripts/migrate-to-tidb.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

@@ -22,7 +22,7 @@ export async function login(formData: FormData): Promise<void> {
   }
 
   // The passphrase logs in as the site owner; authorization still goes
-  // through tblPeople like any other uid.
+  // through the people table like any other uid.
   const uid = (process.env.SITE_OWNER_UID ?? "aperkel").toLowerCase();
   const jar = await cookies();
   jar.set(SESSION_COOKIE, await createSessionToken(uid), sessionCookieOptions());

@@ -6,12 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getEmailMap, requireAdminAction } from "@/lib/auth";
 import { execute, getPool, query } from "@/lib/db";
-import {
-  getAllPeople,
-  getBillTypeFee,
-  getBillTypes,
-  billFileHref,
-} from "@/lib/bills";
+import { getAllPeople, getBillTypeByName, billFileHref } from "@/lib/bills";
 import { emailIdentity, formatLongDate, newBillEmailHtml, reminderEmailHtml } from "@/lib/emails";
 import { sendSmtpMail } from "@/lib/mail";
 import { RowDataPacket } from "mysql2";
@@ -46,19 +41,19 @@ export async function addBill(
   }
 
   const errors: string[] = [];
-  const item = String(formData.get("item") ?? "");
+  const typeName = String(formData.get("type") ?? "");
   const billDateStr = String(formData.get("date") ?? "");
   const dueDateStr = String(formData.get("due") ?? "");
   const amountStr = String(formData.get("amount") ?? "");
   const file = formData.get("view");
 
-  if (!billDateStr || !item || !amountStr || !dueDateStr || !(file instanceof File) || file.size === 0) {
-    errors.push("Missing one of: date, item, amount, due, or PDF.");
+  if (!billDateStr || !typeName || !amountStr || !dueDateStr || !(file instanceof File) || file.size === 0) {
+    errors.push("Missing one of: date, type, amount, due, or PDF.");
   }
 
-  const billTypes = await getBillTypes();
-  if (!billTypes.some((t) => t.typeName === item)) {
-    errors.push("Invalid item selected.");
+  const billType = await getBillTypeByName(typeName);
+  if (!billType) {
+    errors.push("Invalid bill type selected.");
   }
 
   const amount = Number(amountStr);
@@ -87,46 +82,44 @@ export async function addBill(
   if (errors.length > 0) return { errors };
 
   const year = billDateStr.slice(0, 4);
-  const fee = await getBillTypeFee(item);
-  const total = amount + fee;
+  const total = amount + Number(billType!.processingFee);
   const allPeople = await getAllPeople();
   const cost = allPeople.length > 0 ? Math.round((total / allPeople.length) * 100) / 100 : 0;
 
-  // Store the file under bill-pdfs/{year}/{item}/, but keep the legacy
-  // "public/..." prefix in fldView so old rows and new rows stay uniform.
-  const dir = path.join(BILLS_DIR, year, item);
+  const dir = path.join(BILLS_DIR, year, typeName);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, origName), buffer!);
-  const dbPath = `public/${year}/${item}/${origName}`;
+  const pdfPath = `${year}/${typeName}/${origName}`;
 
   const result = await execute(
-    `INSERT INTO tblUtilities (fldDate, fldItem, fldTotal, fldCost, fldDue, fldStatus, fldView)
-     VALUES (?, ?, ?, ?, ?, 'Unpaid', ?)`,
-    [billDateStr, item, total, cost, dueDateStr, dbPath],
+    `INSERT INTO bills (type_id, bill_date, due_date, total, per_person_cost, status, pdf_path)
+     VALUES (?, ?, ?, ?, ?, 'unpaid', ?)`,
+    [billType!.id, billDateStr, dueDateStr, total, cost, pdfPath],
   );
   const newBillId = result.insertId;
 
-  for (const person of allPeople) {
-    await execute("INSERT INTO tblBillOwes (billID, personID) VALUES (?, ?)", [
-      newBillId,
-      person.personID,
-    ]);
+  if (allPeople.length > 0) {
+    const placeholders = allPeople.map(() => "(?, ?)").join(", ");
+    await execute(
+      `INSERT INTO bill_debts (bill_id, person_id) VALUES ${placeholders}`,
+      allPeople.flatMap((p) => [newBillId, p.id]),
+    );
   }
 
   // Notify everyone + admin confirmation (same content as the PHP site)
   const id = emailIdentity();
   const emailMap = await getEmailMap();
-  const billViewLink = `${id.baseUrl}${billFileHref(dbPath)}`;
+  const billViewLink = `${id.baseUrl}${billFileHref(pdfPath)}`;
   const sent: Record<string, string> = {};
   for (const person of allPeople) {
-    const to = emailMap[person.personName];
+    const to = emailMap[person.name];
     if (!to) continue;
     const html = newBillEmailHtml(
-      { personName: person.personName, item, total, cost, dueDate: dueDateStr, billViewLink },
+      { personName: person.name, item: typeName, total, cost, dueDate: dueDateStr, billViewLink },
       id,
     );
-    if (await sendSmtpMail(to, `New Bill Posted: ${item}`, html)) {
-      sent[person.personName] = to;
+    if (await sendSmtpMail(to, `New Bill Posted: ${typeName}`, html)) {
+      sent[person.name] = to;
     }
   }
   const confirmTo = process.env.APP_CONFIRMATION_EMAIL_TO;
@@ -140,13 +133,13 @@ export async function addBill(
     const confBody =
       `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#111827;">` +
       `<h3 style="margin:0 0 8px 0;">Admin Confirmation: New Bill Posted</h3>` +
-      `<p style="margin:6px 0 10px 0;color:#374151;"><strong>Item:</strong> ${item} &nbsp;|&nbsp; <strong>Total:</strong> $${total.toFixed(2)}</p>` +
+      `<p style="margin:6px 0 10px 0;color:#374151;"><strong>Item:</strong> ${typeName} &nbsp;|&nbsp; <strong>Total:</strong> $${total.toFixed(2)}</p>` +
       `<p style="margin:6px 0 10px 0;color:#374151;"><strong>Due:</strong> ${formatLongDate(dueDateStr)}</p>` +
       `<p style="margin:6px 0 10px 0;color:#374151;"><strong>Sent to:</strong> ${sentList}</p>` +
       `<hr style="border:none;border-top:1px solid #eef2ff;margin:12px 0;">` +
-      `<p style="margin:0;color:#6b7280;font-size:13px;">Original Subject: New Bill Posted: ${item}</p>` +
+      `<p style="margin:0;color:#6b7280;font-size:13px;">Original Subject: New Bill Posted: ${typeName}</p>` +
       `</div>`;
-    await sendSmtpMail(confirmTo, `Admin Confirmation: New Bill Posted - ${item}`, confBody);
+    await sendSmtpMail(confirmTo, `Admin Confirmation: New Bill Posted - ${typeName}`, confBody);
   }
 
   done("New bill successfully added and assigned to all users!");
@@ -172,34 +165,29 @@ export async function updateOwes(
   }
 
   const statusRows = await query<RowDataPacket>(
-    "SELECT fldStatus FROM tblUtilities WHERE pmkBillID = ?",
+    "SELECT status FROM bills WHERE id = ?",
     [billId],
   );
   if (statusRows.length === 0) return { ok: false, error: `Bill ${billId} not found.` };
-  const currentStatus = statusRows[0].fldStatus as string;
+  const currentStatus = statusRows[0].status as string;
 
   const paid = new Set(paidPersonIds.map(Number));
   const conn = await getPool().getConnection();
   let newStatus = currentStatus;
   try {
     await conn.beginTransaction();
-    await conn.execute("DELETE FROM tblBillOwes WHERE billID = ?", [billId]);
-    let owingCount = 0;
-    for (const person of allPeople) {
-      if (!paid.has(person.personID)) {
-        await conn.execute("INSERT INTO tblBillOwes (billID, personID) VALUES (?, ?)", [
-          billId,
-          person.personID,
-        ]);
-        owingCount++;
-      }
+    await conn.execute("DELETE FROM bill_debts WHERE bill_id = ?", [billId]);
+    const owing = allPeople.filter((p) => !paid.has(p.id));
+    if (owing.length > 0) {
+      const placeholders = owing.map(() => "(?, ?)").join(", ");
+      await conn.execute(
+        `INSERT INTO bill_debts (bill_id, person_id) VALUES ${placeholders}`,
+        owing.flatMap((p) => [billId, p.id]),
+      );
     }
-    newStatus = owingCount === 0 ? "Paid" : "Unpaid";
+    newStatus = owing.length === 0 ? "paid" : "unpaid";
     if (newStatus !== currentStatus) {
-      await conn.execute("UPDATE tblUtilities SET fldStatus = ? WHERE pmkBillID = ?", [
-        newStatus,
-        billId,
-      ]);
+      await conn.execute("UPDATE bills SET status = ? WHERE id = ?", [newStatus, billId]);
     }
     await conn.commit();
   } catch (err) {
@@ -228,28 +216,32 @@ export async function sendReminder(formData: FormData): Promise<void> {
 
   const billId = Number(formData.get("billId"));
   const bills = await query<RowDataPacket>(
-    "SELECT pmkBillID, fldDue, fldItem, fldTotal, fldCost FROM tblUtilities WHERE pmkBillID = ?",
+    `SELECT b.id, b.due_date AS dueDate, b.total, b.per_person_cost AS perPersonCost,
+            t.name AS typeName
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     WHERE b.id = ?`,
     [billId],
   );
   const bill = bills[0];
   if (!bill) fail(`Bill ${billId} not found.`);
 
   const owingRows = await query<RowDataPacket>(
-    `SELECT p.personName FROM tblPeople p
-     JOIN tblBillOwes bo ON p.personID = bo.personID
-     WHERE bo.billID = ?`,
+    `SELECT p.name FROM people p
+     JOIN bill_debts d ON p.id = d.person_id
+     WHERE d.bill_id = ?`,
     [billId],
   );
-  const owingNames: string[] = owingRows.map((r) => r.personName);
+  const owingNames: string[] = owingRows.map((r) => r.name);
 
-  const due = new Date(`${bill.fldDue}T00:00:00`);
+  const due = new Date(`${bill.dueDate}T00:00:00`);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const intervalDays = today > due ? 0 : Math.round((due.getTime() - today.getTime()) / 86400000);
   const subject =
     intervalDays <= 3
-      ? `URGENT: Reminder - ${bill.fldItem} Bill Due Soon`
-      : `Reminder: ${bill.fldItem} Bill Due`;
+      ? `URGENT: Reminder - ${bill.typeName} Bill Due Soon`
+      : `Reminder: ${bill.typeName} Bill Due`;
 
   const id = emailIdentity();
   const emailMap = await getEmailMap();
@@ -260,10 +252,10 @@ export async function sendReminder(formData: FormData): Promise<void> {
     const html = reminderEmailHtml(
       {
         personName,
-        item: bill.fldItem,
-        total: Number(bill.fldTotal),
-        cost: Number(bill.fldCost),
-        dueDate: bill.fldDue,
+        item: bill.typeName,
+        total: Number(bill.total),
+        cost: Number(bill.perPersonCost),
+        dueDate: bill.dueDate,
       },
       id,
     );
@@ -278,16 +270,16 @@ export async function sendReminder(formData: FormData): Promise<void> {
     const confirmBody =
       `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#111827;">` +
       `<h3 style="margin:0 0 8px 0;">Reminder Batch Report</h3>` +
-      `<p style="margin:6px 0 10px 0;color:#374151;">Bill: <strong>${bill.fldItem}</strong> — Due: <strong>${bill.fldDue}</strong></p>` +
+      `<p style="margin:6px 0 10px 0;color:#374151;">Bill: <strong>${bill.typeName}</strong> — Due: <strong>${bill.dueDate}</strong></p>` +
       `<p style="margin:6px 0 10px 0;color:#374151;"><strong>Processed recipients:</strong></p>` +
       `<p style="margin:0 0 8px 0;color:#374151;">${processed}</p>` +
       `<hr style="border:none;border-top:1px solid #eef2ff;margin:12px 0;">` +
       `<p style="margin:0;color:#6b7280;font-size:13px;">Original Subject: ${subject}</p>` +
       `</div>`;
-    await sendSmtpMail(confirmTo, `Reminder Batch Processed: ${bill.fldItem} due ${bill.fldDue}`, confirmBody);
+    await sendSmtpMail(confirmTo, `Reminder Batch Processed: ${bill.typeName} due ${bill.dueDate}`, confirmBody);
   }
 
-  done(`Reminders for bill '${bill.fldItem}' processed.`);
+  done(`Reminders for bill '${bill.typeName}' processed.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -307,26 +299,26 @@ export async function savePerson(formData: FormData): Promise<void> {
   const email = String(formData.get("person_email") ?? "").trim();
   const isAdmin = formData.get("person_is_admin") ? 1 : 0;
 
-  if (!name || !uid || !email) fail("Name, NetID, and email are all required.");
+  if (!name || !uid || !email) fail("Name, login ID, and email are all required.");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail("Invalid email address.");
 
   try {
     if (action === "add") {
       await execute(
-        "INSERT INTO tblPeople (personName, uid, email, is_admin) VALUES (?, ?, ?, ?)",
+        "INSERT INTO people (name, uid, email, is_admin) VALUES (?, ?, ?, ?)",
         [name, uid, email, isAdmin],
       );
     } else {
       const id = Number(formData.get("person_id"));
       if (!id) fail("Invalid user ID.");
       await execute(
-        "UPDATE tblPeople SET personName=?, uid=?, email=?, is_admin=? WHERE personID=?",
+        "UPDATE people SET name=?, uid=?, email=?, is_admin=? WHERE id=?",
         [name, uid, email, isAdmin, id],
       );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    fail(/duplicate/i.test(message) ? "That NetID is already in use." : `Database error: ${message}`);
+    fail(/duplicate/i.test(message) ? "That name or login ID is already in use." : `Database error: ${message}`);
   }
 
   done(action === "add" ? `User '${name}' added.` : `User '${name}' updated.`);
@@ -340,7 +332,9 @@ export async function removePerson(formData: FormData): Promise<void> {
   }
   const id = Number(formData.get("person_id"));
   if (!id) fail("Invalid user ID.");
-  await execute("DELETE FROM tblPeople WHERE personID = ?", [id]);
+  // No FK cascade on TiDB — clear their outstanding shares explicitly.
+  await execute("DELETE FROM bill_debts WHERE person_id = ?", [id]);
+  await execute("DELETE FROM people WHERE id = ?", [id]);
   done("User removed.");
 }
 
@@ -367,14 +361,14 @@ export async function saveBillType(formData: FormData): Promise<void> {
   try {
     if (action === "add") {
       await execute(
-        "INSERT INTO tblBillTypes (typeName, typeEmoji, processingFee) VALUES (?, ?, ?)",
+        "INSERT INTO bill_types (name, emoji, processing_fee) VALUES (?, ?, ?)",
         [name, emoji, fee],
       );
     } else {
       const id = Number(formData.get("billtype_id"));
       if (!id) fail("Invalid bill type ID.");
       await execute(
-        "UPDATE tblBillTypes SET typeName=?, typeEmoji=?, processingFee=? WHERE typeID=?",
+        "UPDATE bill_types SET name=?, emoji=?, processing_fee=? WHERE id=?",
         [name, emoji, fee, id],
       );
     }
@@ -400,21 +394,21 @@ export async function removeBillType(formData: FormData): Promise<void> {
   if (!id) fail("Invalid bill type ID.");
 
   const nameRows = await query<RowDataPacket>(
-    "SELECT typeName FROM tblBillTypes WHERE typeID = ?",
+    "SELECT name FROM bill_types WHERE id = ?",
     [id],
   );
-  const name = nameRows[0]?.typeName;
+  const name = nameRows[0]?.name;
   if (!name) fail("Bill type not found.");
 
   const countRows = await query<RowDataPacket>(
-    "SELECT COUNT(*) AS n FROM tblUtilities WHERE fldItem = ?",
-    [name],
+    "SELECT COUNT(*) AS n FROM bills WHERE type_id = ?",
+    [id],
   );
   if (Number(countRows[0].n) > 0) {
     fail(`Cannot remove '${name}' — there are existing bills of this type.`);
   }
 
-  await execute("DELETE FROM tblBillTypes WHERE typeID = ?", [id]);
+  await execute("DELETE FROM bill_types WHERE id = ?", [id]);
   done(`Bill type '${name}' removed.`);
 }
 
@@ -439,15 +433,15 @@ export async function saveRent(formData: FormData): Promise<void> {
   }
   if (end <= start) fail("End date must be after start date.");
 
-  const existing = await query<RowDataPacket>("SELECT id FROM tblRentConfig LIMIT 1");
+  const existing = await query<RowDataPacket>("SELECT id FROM rent_config LIMIT 1");
   if (existing.length > 0) {
     await execute(
-      "UPDATE tblRentConfig SET rentAmount = ?, startDate = ?, endDate = ? WHERE id = ?",
+      "UPDATE rent_config SET monthly_rent = ?, lease_start = ?, lease_end = ? WHERE id = ?",
       [amount, start, end, existing[0].id],
     );
   } else {
     await execute(
-      "INSERT INTO tblRentConfig (rentAmount, startDate, endDate) VALUES (?, ?, ?)",
+      "INSERT INTO rent_config (monthly_rent, lease_start, lease_end) VALUES (?, ?, ?)",
       [amount, start, end],
     );
   }

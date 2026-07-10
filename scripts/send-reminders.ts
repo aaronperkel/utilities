@@ -33,18 +33,19 @@ async function main() {
 
   const rows = await query<RowDataPacket>(
     `SELECT
-       u.pmkBillID  AS bill_id,
-       u.fldDue     AS due_date,
-       u.fldItem    AS item,
-       u.fldTotal   AS total,
-       u.fldCost    AS cost,
-       p.personName AS person,
-       p.email      AS email
-     FROM tblUtilities u
-     JOIN tblBillOwes bo ON u.pmkBillID = bo.billID
-     JOIN tblPeople   p  ON bo.personID = p.personID
-     WHERE u.fldStatus <> 'Paid'
-     ORDER BY u.fldDue, p.personName`,
+       b.id              AS bill_id,
+       b.due_date        AS due_date,
+       t.name            AS item,
+       b.total           AS total,
+       b.per_person_cost AS cost,
+       p.name            AS person,
+       p.email           AS email
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     JOIN bill_debts d  ON b.id = d.bill_id
+     JOIN people     p  ON d.person_id = p.id
+     WHERE b.status <> 'paid'
+     ORDER BY b.due_date, p.name`,
   );
 
   if (rows.length === 0) {

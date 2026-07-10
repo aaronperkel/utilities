@@ -9,17 +9,18 @@ export interface MonthlyTotals {
 /** Monthly Gas/Electric totals for all history, pivoted by month. */
 export async function getMonthlyTotals(): Promise<MonthlyTotals> {
   const rows = await query<RowDataPacket>(
-    `SELECT DATE_FORMAT(fldDate, '%Y-%m') AS month, fldItem, SUM(fldTotal) AS total
-     FROM tblUtilities
-     WHERE fldItem IN ('Gas','Electric')
-     GROUP BY month, fldItem
+    `SELECT DATE_FORMAT(b.bill_date, '%Y-%m') AS month, t.name AS typeName, SUM(b.total) AS total
+     FROM bills b
+     JOIN bill_types t ON t.id = b.type_id
+     WHERE t.name IN ('Gas','Electric')
+     GROUP BY month, typeName
      ORDER BY month`,
   );
   const monthly = new Map<string, { Gas: number; Electric: number }>();
   for (const r of rows) {
     const m = r.month as string;
     if (!monthly.has(m)) monthly.set(m, { Gas: 0, Electric: 0 });
-    monthly.get(m)![r.fldItem as "Gas" | "Electric"] = Number(r.total);
+    monthly.get(m)![r.typeName as "Gas" | "Electric"] = Number(r.total);
   }
   return { labels: [...monthly.keys()], monthly };
 }
