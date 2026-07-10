@@ -1,6 +1,7 @@
 {
   "name": "77 N Union Utilities",
   "short_name": "77 N Union",
+  "description": "Shared utility bills for 77 N Union #3 — split, tracked, settled.",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +16,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
+  "theme_color": "#1d5fd6",
+  "background_color": "#f4f5f6",
   "display": "standalone"
 }
