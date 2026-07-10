@@ -38,7 +38,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="mx-auto max-w-[1100px] px-5 pt-8 pb-12 font-sans">
-        <Nav isAdmin={!!person?.is_admin} />
+        <Nav isAdmin={!!person?.isAdmin} />
         <div className="site-container">{children}</div>
         <footer className="card mt-10 px-6 py-5 flex flex-wrap items-center justify-between gap-3 text-sm">
           <div>
