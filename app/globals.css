@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* Design tokens ported from the PHP site's custom.css */
+@theme {
+  --color-page: #0f1724;
+  --color-panel: #0b1220;
+  --color-ink: #e6eef8;
+  --color-ink-muted: rgba(230, 238, 248, 0.6);
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-accent: #60a5fa;
+  --color-paid: #48bb78;
+  --color-unpaid: #f56565;
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+  --color-border-light: rgba(255, 255, 255, 0.08);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+}
+
+html {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-size: clamp(15px, 1vw + 12px, 16px);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .card {
+    @apply bg-panel border border-border-subtle rounded-(--radius-md);
+  }
+
+  .section-title {
+    @apply text-xl font-bold mb-5;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 min-h-10
+      rounded-(--radius-sm) text-sm font-semibold cursor-pointer
+      border border-border-light bg-white/[0.03] text-ink no-underline
+      transition-all duration-150 hover:bg-white/[0.06] hover:-translate-y-px
+      focus:outline-none focus:ring-[3px] focus:ring-primary/35;
+  }
+
+  .btn-primary {
+    @apply bg-primary border-none text-white hover:bg-primary-hover
+      hover:shadow-[0_4px_14px_rgba(59,130,246,0.3)];
+  }
+
+  .btn-outline {
+    @apply bg-transparent border border-border-light hover:bg-white/[0.04]
+      hover:border-white/[0.12];
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 min-h-8 text-[0.8rem];
+  }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-8 h-8
+      rounded-(--radius-sm) border border-border-light bg-white/[0.03]
+      text-ink cursor-pointer transition-colors hover:bg-white/[0.08];
+  }
+
+  .badge {
+    @apply inline-block px-2.5 py-1 rounded-full text-xs font-bold;
+  }
+
+  .badge-paid {
+    @apply bg-paid/15 text-paid;
+  }
+
+  .badge-unpaid {
+    @apply bg-unpaid/15 text-unpaid;
+  }
+
+  .due-chip {
+    @apply inline-block px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap;
+  }
+
+  .due-paid {
+    @apply bg-white/[0.05] text-ink-muted;
+  }
+
+  .due-past {
+    @apply bg-unpaid/15 text-unpaid;
+  }
+
+  .due-soon {
+    @apply bg-amber-400/15 text-amber-300;
+  }
+
+  .due-future {
+    @apply bg-white/[0.05] text-ink-muted;
+  }
+
+  .form-panel {
+    @apply bg-panel border border-border-subtle rounded-(--radius-md) p-5;
+  }
+
+  .field-label {
+    @apply block text-sm font-semibold mb-1.5;
+  }
+
+  .field-input {
+    @apply w-full rounded-(--radius-sm) border border-border-light
+      bg-white/[0.03] px-3 py-2 text-sm text-ink
+      placeholder:text-ink-muted/60
+      focus:outline-none focus:ring-2 focus:ring-primary/50;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .data-table th {
+    @apply text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide
+      text-ink-muted border-b border-border-light;
+  }
+
+  .data-table td {
+    @apply px-4 py-3 border-b border-border-subtle align-middle;
+  }
+}

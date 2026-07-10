@@ -1,37 +1,28 @@
-# System files
-.DS_Store
-Thumbs.db
+# Dependencies / build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
 
-# Composer dependencies — regenerate with `composer install`
-vendor/
-
-# Environment files (secrets live in ../utilities.env, outside the webroot)
+# Environment — never commit secrets
 .env
-.env.local
+.env.*
+!.env.example
 utilities.env
 
-# Uploaded bill PDFs (keep repo clean)
-public/**/*.pdf
+# Uploaded bill PDFs (private data, lives outside the repo)
+bill-pdfs/
 
-# Generated calendar feed
+# Generated files
 cal.ics
 
-# Python leftovers
-__pycache__/
-*.pyc
+# macOS
+.DS_Store
 
-# Logs, temp, backups
-*.log
-*.tmp
-*.bak
+# Backup files
 *.backup
-*.swp
-*.swo
-*~
 
-# Editor / tooling
+# IDE / tooling
 .vscode/
 .idea/
-*.code-workspace
-.cursor/
 .claude/

@@ -1,5 +1,0 @@
-<Files "unpaid.php">
-    AuthType None
-    Require all granted
-    Satisfy any
-</Files>
