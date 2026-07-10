@@ -13,9 +13,6 @@ utilities.env
 # Uploaded bill PDFs (private data, lives outside the repo)
 bill-pdfs/
 
-# Generated files
-cal.ics
-
 # macOS
 .DS_Store
 
