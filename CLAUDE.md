@@ -21,7 +21,7 @@ There is no test suite; `npm run build` (which typechecks) plus hitting routes a
 
 ## Configuration
 
-Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set).
+Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set), `CRON_SECRET` (bearer token for `/api/cron/reminders`; must match the GitHub Actions repo secret of the same name).
 
 The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000, reachable from anywhere). The legacy copy on `webdb.uvm.edu` (UVM-network-only, shared with the retired PHP site) is frozen at migration time; `scripts/migrate-to-tidb.ts` did the one-time copy and rename.
 
@@ -33,13 +33,14 @@ Interim passphrase gate (UVM CAS was removed when the site moved to Vercel — n
 
 ### Database
 
-Five tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
+Six tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
 
 - `people` (`id`, `name`, `uid` = login id, `email`, `is_admin`)
 - `bills` (`id`, `type_id` → `bill_types`, `bill_date`, `due_date`, `total`, `per_person_cost`, `status` enum `'unpaid'|'paid'`, `pdf_path`)
 - `bill_debts` (`bill_id`, `person_id`) — junction: who still owes; **rows are deleted as people pay**
 - `bill_types` (`id`, `name`, `emoji`, `processing_fee`) — drives the add-bill dropdown, emoji display, and fee math
 - `rent_config` — single-row rent amount + lease range for the calendar feed
+- `reminder_config` — single-row reminder schedule (enabled, ET send hour, heads-up/urgent day offsets) plus cron bookkeeping (`last_run_at`, `last_send_date` once-per-day guard, `last_sent_at`/`last_sent_count`); edited in portal → Household
 
 **No FK constraints** (experimental on TiDB): integrity is app-level — `removePerson` deletes the person's `bill_debts` rows, `removeBillType` refuses while bills reference the type. `status` is the bill's global state; a bill flips to `'paid'` only when nobody is left in `bill_debts` (see `updateOwes` in `app/portal/actions.ts`, transactional). Bill math: `total = amount + processing_fee`, `per_person_cost = round(total / peopleCount, 2)`. SQL aliases map snake_case columns to camelCase TS fields (`per_person_cost AS perPersonCost`); bill queries join `bill_types` so each `Bill` carries `typeName`/`typeEmoji`.
 
@@ -56,7 +57,8 @@ Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) wi
 - `app/trends/` — Chart.js line chart (last 12 months + last-year overlay, colors read from the CSS tokens at mount and rebuilt on theme change), insight columns, CSV at `/trends/csv`
 - `app/cal.ics/route.ts` — public iCal feed generated on demand (the PHP site wrote a static file after every change; here it can never go stale)
 - `app/api/unpaid/route.ts` — public JSON API, `X-Api-Key` + optional HMAC (`METHOD\nPATH\nTS\nBODY` signature, 300s skew window)
-- `scripts/send-reminders.ts` — cron: reminds at exactly 7 days before due and again at ≤3 days (including overdue), then emails a batch confirmation to `APP_CONFIRMATION_EMAIL_TO`
+- `app/api/cron/reminders/route.ts` — reminder scheduler: a GitHub Actions workflow (`.github/workflows/reminders.yml`) pings it hourly with `Authorization: Bearer CRON_SECRET`; the route reads `reminder_config` and only sends during the configured ET hour, at most once per NY calendar day. Core logic is shared with the CLI in `lib/reminders.ts` (heads-up at exactly N days before due, urgent at ≤M days including overdue — defaults 7/3 — then a batch confirmation to `APP_CONFIRMATION_EMAIL_TO`)
+- `scripts/send-reminders.ts` — manual CLI for the same batch (thin wrapper over `lib/reminders.ts`); running it stamps `last_send_date`, so the cron won't double-send that day
 
 ### Email
 
@@ -68,4 +70,4 @@ Tailwind v4 (CSS-first config in `app/globals.css`), "statement portal" theme: l
 
 ## Deployment
 
-Deployed on Vercel at `utilities.aaronperkel.com` (July 2026). The DB is TiDB Cloud Serverless and PDFs live in Vercel Blob — set the `DB_*` env vars and `BLOB_READ_WRITE_TOKEN` in the Vercel project (connecting the Blob store to the project sets the token automatically). Remaining gap: `scripts/send-reminders.ts` has no scheduler — the silk crontab is retired, so nothing runs it (needs Vercel Cron or a GitHub Actions schedule). The PHP predecessor on UVM silk is retired; its webdb data is frozen as of the TiDB migration.
+Deployed on Vercel at `utilities.aaronperkel.com` (July 2026). The DB is TiDB Cloud Serverless and PDFs live in Vercel Blob — set the `DB_*` env vars, `BLOB_READ_WRITE_TOKEN` (connecting the Blob store to the project sets the token automatically), and `CRON_SECRET` in the Vercel project. Reminders are scheduled by `.github/workflows/reminders.yml` (hourly GitHub Actions ping of `/api/cron/reminders`; GitHub Actions was chosen over Vercel Cron because Hobby-plan crons are limited to once daily, which would defeat the portal-configurable send hour). The PHP predecessor on UVM silk is retired; its webdb data is frozen as of the TiDB migration.

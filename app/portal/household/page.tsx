@@ -2,8 +2,10 @@ import { RowDataPacket } from "mysql2";
 import { requireAdmin } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { getBillTypes, getRentConfig } from "@/lib/bills";
+import { getReminderConfig } from "@/lib/reminders";
 import PortalTabs from "@/app/portal/PortalTabs";
 import BillTypesSection from "@/app/portal/BillTypesSection";
+import RemindersSection from "@/app/portal/RemindersSection";
 import UsersSection, { PersonDetail } from "@/app/portal/UsersSection";
 import { saveRent } from "@/app/portal/actions";
 
@@ -21,13 +23,19 @@ export default async function HouseholdPage({
 }: {
   searchParams: Promise<{ ok?: string; err?: string }>;
 }) {
-  await requireAdmin();
   const { ok, err } = await searchParams;
 
-  const [billTypes, rentConfig] = await Promise.all([getBillTypes(), getRentConfig()]);
-  const peopleDetails = await query<RowDataPacket>(
-    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
-  );
+  // Single round-trip wave; requireAdmin's redirect throws on failure and the
+  // fetched data is discarded unrendered.
+  const [, billTypes, rentConfig, reminderConfig, peopleDetails] = await Promise.all([
+    requireAdmin(),
+    getBillTypes(),
+    getRentConfig(),
+    getReminderConfig(),
+    query<RowDataPacket>(
+      "SELECT id, name, uid, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
+    ),
+  ]);
 
   return (
     <main>
@@ -112,6 +120,8 @@ export default async function HouseholdPage({
           </form>
         </div>
       </section>
+
+      <RemindersSection config={reminderConfig} />
     </main>
   );
 }

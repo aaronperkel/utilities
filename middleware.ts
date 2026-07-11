@@ -20,6 +20,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/|login|api/unpaid|cal.ics|no-access|favicon|apple-touch-icon|site.webmanifest|web-app-manifest|og.png).*)",
+    "/((?!_next/|login|api/unpaid|api/cron|cal.ics|no-access|favicon|apple-touch-icon|site.webmanifest|web-app-manifest|og.png).*)",
   ],
 };

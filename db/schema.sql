@@ -54,3 +54,18 @@ CREATE TABLE rent_config (
     lease_start  DATE          NOT NULL,
     lease_end    DATE          NOT NULL
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Single-row reminder schedule (the app reads the newest row), edited in
+-- portal → Household → Reminders and consumed by app/api/cron/reminders,
+-- which an hourly GitHub Actions cron pings with CRON_SECRET.
+CREATE TABLE reminder_config (
+    id                   INT UNSIGNED     NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    enabled              TINYINT(1)       NOT NULL DEFAULT 1,
+    send_hour            TINYINT UNSIGNED NOT NULL DEFAULT 9,  -- 0-23, America/New_York
+    first_reminder_days  TINYINT UNSIGNED NOT NULL DEFAULT 7,  -- heads-up at exactly N days out
+    urgent_reminder_days TINYINT UNSIGNED NOT NULL DEFAULT 3,  -- urgent at <= N days, incl. overdue
+    last_run_at          DATETIME NULL,   -- UTC; last authorized cron check-in
+    last_send_date       DATE     NULL,   -- NY date the batch last executed (once-per-day guard)
+    last_sent_at         DATETIME NULL,   -- UTC; last time reminder emails actually went out
+    last_sent_count      INT UNSIGNED NOT NULL DEFAULT 0
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

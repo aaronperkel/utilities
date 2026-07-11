@@ -465,3 +465,53 @@ export async function saveRent(formData: FormData): Promise<void> {
 
   done("Rent configuration updated.", HOUSEHOLD);
 }
+
+// ---------------------------------------------------------------------------
+// Reminder schedule (drives the hourly cron endpoint, api/cron/reminders)
+// ---------------------------------------------------------------------------
+
+export async function saveReminderConfig(formData: FormData): Promise<void> {
+  try {
+    await requireAdminAction();
+  } catch {
+    fail("Admin access required.", HOUSEHOLD);
+  }
+
+  const enabled = formData.get("enabled") === "on" ? 1 : 0;
+  const sendHour = Number(formData.get("send_hour"));
+  const firstDays = Number(formData.get("first_days"));
+  const urgentDays = Number(formData.get("urgent_days"));
+
+  if (!Number.isInteger(sendHour) || sendHour < 0 || sendHour > 23) {
+    fail("Send hour must be between 0 and 23.", HOUSEHOLD);
+  }
+  if (!Number.isInteger(firstDays) || firstDays < 1 || firstDays > 30) {
+    fail("Heads-up reminder must be 1–30 days before due.", HOUSEHOLD);
+  }
+  if (!Number.isInteger(urgentDays) || urgentDays < 0 || urgentDays > 30) {
+    fail("Urgent reminder window must be 0–30 days.", HOUSEHOLD);
+  }
+  if (urgentDays >= firstDays) {
+    fail("The urgent window must be smaller than the heads-up day.", HOUSEHOLD);
+  }
+
+  const existing = await query<RowDataPacket>(
+    "SELECT id FROM reminder_config ORDER BY id DESC LIMIT 1",
+  );
+  if (existing.length > 0) {
+    await execute(
+      `UPDATE reminder_config
+       SET enabled = ?, send_hour = ?, first_reminder_days = ?, urgent_reminder_days = ?
+       WHERE id = ?`,
+      [enabled, sendHour, firstDays, urgentDays, existing[0].id],
+    );
+  } else {
+    await execute(
+      `INSERT INTO reminder_config (enabled, send_hour, first_reminder_days, urgent_reminder_days)
+       VALUES (?, ?, ?, ?)`,
+      [enabled, sendHour, firstDays, urgentDays],
+    );
+  }
+
+  done("Reminder schedule saved.", HOUSEHOLD);
+}
