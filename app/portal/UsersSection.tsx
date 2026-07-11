@@ -30,7 +30,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
       </div>
 
       <div className="panel overflow-x-auto">
-        <table className="data-table">
+        <table className="data-table table-stack table-stack-people">
           <thead>
             <tr>
               <th>Name</th>
@@ -44,16 +44,16 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
           <tbody>
             {people.map((p) => (
               <tr key={p.id}>
-                <td className="font-medium">{p.name}</td>
-                <td className="text-ink-muted">{p.email ?? ""}</td>
-                <td>
+                <td className="cell-name font-medium">{p.name}</td>
+                <td className="cell-email text-ink-muted">{p.email ?? ""}</td>
+                <td className="cell-role">
                   {p.isAdmin ? (
                     <span className="tag bg-accent-soft text-accent">Admin</span>
                   ) : (
                     <span className="text-ink-muted">—</span>
                   )}
                 </td>
-                <td className="num">
+                <td className="num cell-actions">
                   <div className="flex justify-end gap-1.5">
                     <button
                       type="button"
@@ -96,7 +96,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
             if (e.target === e.currentTarget) setModal({ mode: "closed" });
           }}
         >
-          <div className="panel w-full max-w-md p-6 shadow-xl">
+          <div className="panel max-h-[85dvh] w-full max-w-md overflow-y-auto p-6 shadow-xl">
             <h3 className="mb-4 text-lg font-bold">
               {editing ? "Edit resident" : "Add resident"}
             </h3>

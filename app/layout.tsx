@@ -66,10 +66,10 @@ export default async function RootLayout({
     <html lang="en" className={ledger.variable}>
       <body className="flex min-h-dvh flex-col font-sans">
         <Nav authed={!!person} isAdmin={!!person?.isAdmin} />
-        <div className="mx-auto w-full max-w-[1000px] flex-1 px-5 py-8">
+        <div className="mx-auto w-full max-w-[1000px] flex-1 px-4 py-8 sm:px-5">
           {children}
         </div>
-        <footer className="mx-auto w-full max-w-[1000px] px-5 pb-8">
+        <footer className="mx-auto w-full max-w-[1000px] px-4 pb-8 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4 text-xs text-ink-muted">
             <span className="font-mono uppercase tracking-[0.1em]">
               Perk Utilities · Est. 2024

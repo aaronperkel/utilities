@@ -92,7 +92,7 @@ export default function BillTypesSection({ billTypes }: { billTypes: BillTypeDet
             if (e.target === e.currentTarget) setModal({ mode: "closed" });
           }}
         >
-          <div className="panel w-full max-w-md p-6 shadow-xl">
+          <div className="panel max-h-[85dvh] w-full max-w-md overflow-y-auto p-6 shadow-xl">
             <h3 className="mb-4 text-lg font-bold">
               {editing ? "Edit bill type" : "Add bill type"}
             </h3>

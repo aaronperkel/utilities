@@ -127,7 +127,7 @@ export default async function DashboardPage({
               <span className="h-px flex-1 bg-line-soft" aria-hidden="true" />
             </div>
             <div className="panel overflow-x-auto">
-              <table className="data-table">
+              <table className="data-table table-stack table-stack-bills">
                 <thead>
                   <tr>
                     <th>Bill</th>
@@ -145,7 +145,7 @@ export default async function DashboardPage({
                     const fileHref = bill.pdfPath ? billFileHref(bill.pdfPath) : null;
                     return (
                       <tr key={bill.id}>
-                        <td>
+                        <td className="cell-bill">
                           <div className="font-medium">
                             {bill.typeEmoji} {bill.typeName}
                           </div>
@@ -153,10 +153,10 @@ export default async function DashboardPage({
                             {formatDayMonth(bill.billDate)}
                           </div>
                         </td>
-                        <td>
+                        <td className="cell-due">
                           <DueChip due={bill.dueDate} paid={!owedByMe} />
                         </td>
-                        <td>
+                        <td className="cell-status">
                           {owedByMe ? (
                             <span className="tag tag-unpaid" aria-label="Unpaid by you">
                               Unpaid
@@ -167,13 +167,13 @@ export default async function DashboardPage({
                             </span>
                           )}
                         </td>
-                        <td className="num">
+                        <td className="num cell-amount">
                           <div className="figure font-medium">${money(Number(bill.total))}</div>
                           <div className="figure text-xs text-ink-muted">
                             ${money(Number(bill.perPersonCost))} ea
                           </div>
                         </td>
-                        <td className="num">
+                        <td className="num cell-actions">
                           {fileHref ? (
                             <div className="flex justify-end gap-1.5">
                               <a

@@ -122,7 +122,7 @@ export default async function TrendsPage() {
       </div>
 
       <div className="panel p-5">
-        <div className="h-[340px]">
+        <div className="h-[260px] sm:h-[340px]">
           <TrendsChart rawLabels={labels} gas={gas} elec={elec} gasLY={gasLY} elecLY={elecLY} />
         </div>
       </div>

@@ -40,10 +40,10 @@ export default function PaymentCheckboxes({
   return (
     <div className={`flex flex-wrap gap-x-4 gap-y-1 ${pending ? "opacity-60" : ""}`}>
       {people.map((p) => (
-        <label key={p.id} className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
+        <label key={p.id} className="inline-flex cursor-pointer items-center gap-1.5 py-0.5 text-sm">
           <input
             type="checkbox"
-            className="accent-(--primary)"
+            className="size-4 accent-(--primary)"
             checked={paidIds.has(p.id)}
             onChange={(e) => toggle(p.id, e.target.checked)}
           />

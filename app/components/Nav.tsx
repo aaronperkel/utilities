@@ -22,7 +22,7 @@ export default function Nav({
 
   return (
     <header className="border-b border-line-soft bg-panel">
-      <div className="mx-auto flex h-13 max-w-[1000px] items-center justify-between gap-4 px-5">
+      <div className="mx-auto flex h-13 max-w-[1000px] items-center justify-between gap-4 px-4 sm:px-5">
         <Link
           href="/"
           className="font-mono text-[0.8rem] font-semibold uppercase tracking-[0.14em] whitespace-nowrap"
@@ -33,7 +33,7 @@ export default function Nav({
           </span>
         </Link>
         {authed && (
-          <nav className="flex h-full items-center gap-5" aria-label="Main navigation">
+          <nav className="flex h-full items-center gap-4 sm:gap-5" aria-label="Main navigation">
             {links.map(({ href, label }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);

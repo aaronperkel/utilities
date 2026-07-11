@@ -116,6 +116,7 @@ html {
       rounded-(--radius-md) text-sm font-medium cursor-pointer
       border border-line bg-panel text-ink no-underline
       transition-colors duration-100 hover:border-ink/40
+      disabled:cursor-default disabled:opacity-60
       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
   }
 
@@ -173,9 +174,10 @@ html {
     @apply block text-[0.82rem] font-semibold mb-1.5;
   }
 
+  /* text-base below sm: fields under 16px make iOS Safari zoom in on focus */
   .field-input {
     @apply w-full rounded-(--radius-md) border border-line bg-panel
-      px-3 py-2 text-sm text-ink
+      px-3 py-2 text-base sm:text-sm text-ink
       placeholder:text-ink-muted/70
       focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25;
   }
@@ -186,12 +188,12 @@ html {
   }
 
   .data-table th {
-    @apply px-4 py-2.5 text-left font-mono text-[0.68rem] font-medium
+    @apply px-3 sm:px-4 py-2.5 text-left font-mono text-[0.68rem] font-medium
       uppercase tracking-[0.12em] text-ink-muted border-b border-line;
   }
 
   .data-table td {
-    @apply px-4 py-3 border-b border-line-soft align-middle;
+    @apply px-3 sm:px-4 py-3 border-b border-line-soft align-middle;
   }
 
   .data-table tr:last-child td {
@@ -231,5 +233,112 @@ html {
   /* Route-loading placeholder blocks (loading.tsx skeletons) */
   .skeleton {
     @apply animate-pulse rounded-(--radius-sm) bg-panel-2;
+  }
+
+  /*
+   * Stacked tables: below sm a .table-stack table reflows into ledger cards —
+   * one grid per row, cells placed by the .cell-* classes — so nothing scrolls
+   * sideways on a phone. Desktop keeps the ruled table untouched.
+   */
+  @media (max-width: 39.99rem) {
+    .table-stack,
+    .table-stack tbody {
+      display: block;
+    }
+
+    .table-stack thead {
+      display: none;
+    }
+
+    .table-stack tr {
+      display: grid;
+      align-items: center;
+      column-gap: 0.75rem;
+      row-gap: 0.625rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .table-stack tr:last-child {
+      border-bottom: 0;
+    }
+
+    .table-stack td {
+      display: block;
+      padding: 0;
+      border: 0;
+    }
+
+    /* Empty-state rows (a single colSpan cell) span the whole card */
+    .table-stack td:only-child {
+      grid-column: 1 / -1;
+    }
+
+    .table-stack-bills tr,
+    .table-stack-owes tr {
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas:
+        "bill bill amount"
+        "due status actions";
+    }
+
+    .table-stack-owes tr {
+      grid-template-areas:
+        "bill bill amount"
+        "due status actions"
+        "owes owes owes";
+    }
+
+    .table-stack-people tr {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "name role"
+        "email email"
+        "actions actions";
+    }
+
+    .table-stack .cell-bill {
+      grid-area: bill;
+    }
+
+    .table-stack .cell-due {
+      grid-area: due;
+    }
+
+    .table-stack .cell-status {
+      grid-area: status;
+    }
+
+    .table-stack .cell-owes {
+      grid-area: owes;
+    }
+
+    .table-stack .cell-amount {
+      grid-area: amount;
+    }
+
+    .table-stack .cell-actions {
+      grid-area: actions;
+    }
+
+    .table-stack .cell-name {
+      grid-area: name;
+    }
+
+    .table-stack .cell-email {
+      grid-area: email;
+    }
+
+    .table-stack .cell-role {
+      grid-area: role;
+      justify-self: end;
+    }
+  }
+
+  /* Touch screens get comfortable icon-button targets */
+  @media (pointer: coarse) {
+    .btn-icon {
+      @apply h-9 w-9;
+    }
   }
 }

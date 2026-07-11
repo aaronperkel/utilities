@@ -106,7 +106,7 @@ export default async function PortalPage({
       />
 
       <div className="panel overflow-x-auto">
-        <table className="data-table">
+        <table className="data-table table-stack table-stack-owes">
           <thead>
             <tr>
               <th>Bill</th>
@@ -135,7 +135,7 @@ export default async function PortalPage({
                 const fileHref = bill.pdfPath ? billFileHref(bill.pdfPath) : null;
                 return (
                   <tr key={bill.id}>
-                    <td>
+                    <td className="cell-bill">
                       <div className="font-medium">
                         {bill.typeEmoji} {bill.typeName}
                       </div>
@@ -143,15 +143,17 @@ export default async function PortalPage({
                         {formatDayMonth(bill.billDate)}
                       </div>
                     </td>
-                    <td>
+                    <td className="cell-due">
                       <DueChip due={bill.dueDate} paid={bill.status === "paid"} />
                     </td>
-                    <td>
+                    <td className="cell-status">
                       <span className={`tag ${bill.status === "paid" ? "tag-paid" : "tag-unpaid"}`}>
                         {bill.status === "paid" ? "Paid" : "Unpaid"}
                       </span>
                     </td>
-                    <td>
+                    <td className="cell-owes">
+                      {/* The column header is hidden on phones; label the checkboxes inline */}
+                      <span className="eyebrow mb-1.5 sm:hidden">Paid by</span>
                       {allPeople.length > 0 ? (
                         <PaymentCheckboxes
                           billId={bill.id}
@@ -162,13 +164,13 @@ export default async function PortalPage({
                         "N/A"
                       )}
                     </td>
-                    <td className="num">
+                    <td className="num cell-amount">
                       <div className="figure font-medium">${money(Number(bill.total))}</div>
                       <div className="figure text-xs text-ink-muted">
                         ${money(Number(bill.perPersonCost))} ea
                       </div>
                     </td>
-                    <td className="num">
+                    <td className="num cell-actions">
                       <div className="flex justify-end gap-1.5">
                         {fileHref && (
                           <>
