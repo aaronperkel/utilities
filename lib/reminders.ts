@@ -3,7 +3,7 @@
 // Relative imports (not @/) so tsx can run the CLI outside Next.
 import { RowDataPacket } from "mysql2";
 import { execute, query } from "./db";
-import { emailIdentity, reminderEmailHtml } from "./emails";
+import { batchConfirmationEmailHtml, emailIdentity, reminderEmailHtml } from "./emails";
 import { sendSmtpMail } from "./mail";
 
 const NY_TZ = "America/New_York";
@@ -138,10 +138,10 @@ export async function runReminderBatch(opts: {
       continue;
     }
 
-    const subject =
-      days <= opts.urgentReminderDays
-        ? `URGENT: Reminder — ${row.item} Bill Due Soon`
-        : `Reminder: ${row.item} Bill Due`;
+    const urgent = days <= opts.urgentReminderDays;
+    const subject = urgent
+      ? `URGENT: Reminder — ${row.item} Bill Due Soon`
+      : `Reminder: ${row.item} Bill Due`;
     const html = reminderEmailHtml(
       {
         personName: row.person,
@@ -149,6 +149,7 @@ export async function runReminderBatch(opts: {
         total: Number(row.total),
         cost: Number(row.cost),
         dueDate: row.due_date,
+        urgent,
       },
       id,
     );
@@ -164,28 +165,11 @@ export async function runReminderBatch(opts: {
   }
 
   if (sent.length > 0 && confirmTo) {
-    const rowsHtml = sent
-      .map(
-        (r) => `<tr>
-          <td style='padding:6px 12px;border-bottom:1px solid #eef2ff;'>${r.person}</td>
-          <td style='padding:6px 12px;border-bottom:1px solid #eef2ff;'>${r.email}</td>
-          <td style='padding:6px 12px;border-bottom:1px solid #eef2ff;'>${r.item}</td>
-        </tr>`,
-      )
-      .join("");
-    const confirmBody = `<div style="font-family:system-ui,Arial;color:#111827;">
-      <h3 style="margin:0 0 12px 0;">Daily Reminder Batch (${sent.length} sent)</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <thead><tr style="background:#f8fafc;">
-          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Name</th>
-          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Email</th>
-          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Bill</th>
-        </tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      <p style="margin:16px 0 0;color:#6b7280;font-size:13px;">${id.fromName} — Automated Daily Script</p>
-    </div>`;
-    await sendSmtpMail(confirmTo, `Daily Reminder Batch (${sent.length} sent)`, confirmBody);
+    await sendSmtpMail(
+      confirmTo,
+      `Daily Reminder Batch (${sent.length} sent)`,
+      batchConfirmationEmailHtml(sent, id),
+    );
     console.log(`Batch confirmation sent to ${confirmTo}`);
   }
 

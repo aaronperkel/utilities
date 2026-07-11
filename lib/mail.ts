@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { contactAddress } from "./emails";
 
 let transporter: nodemailer.Transporter | undefined;
 
@@ -36,6 +37,8 @@ export async function sendSmtpMail(
   try {
     await getTransporter().sendMail({
       from: { name: fromName(), address: fromAddress() },
+      // From is a noreply@ alias; route replies to the human address
+      replyTo: contactAddress(),
       to,
       subject,
       html,

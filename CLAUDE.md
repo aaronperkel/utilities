@@ -62,7 +62,7 @@ Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) wi
 
 ### Email
 
-`lib/mail.ts` (nodemailer, iCloud SMTP/STARTTLS; login is `SMTP_USER` falling back to the from address — iCloud logs in as the primary address even when sending From an alias like noreply@) + `lib/emails.ts` (HTML templates ported verbatim from PHP — keep the inline-style format; email clients need it). `sendSmtpMail` returns false on failure (logged, not thrown); callers are responsible for surfacing failures.
+`lib/mail.ts` (nodemailer, iCloud SMTP/STARTTLS; login is `SMTP_USER` falling back to the from address — iCloud logs in as the primary address even when sending From an alias like noreply@; Reply-To is the human `contactAddress()`) + `lib/emails.ts` (statement-portal-styled templates — shared `emailShell` with mono eyebrows/ruled tables mirroring the site's light tokens; inline styles only, email clients ignore stylesheets; light-theme only on purpose). All five emails (reminder, new bill, custom, batch + bulk confirmations) go through these templates. `sendSmtpMail` returns false on failure (logged, not thrown); callers are responsible for surfacing failures.
 
 ### Styling
 
