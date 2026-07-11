@@ -18,9 +18,9 @@ function loginUrl(params: Record<string, string>): string {
   return `/login?${new URLSearchParams(params)}`;
 }
 
-async function startSession(uid: string): Promise<void> {
+async function startSession(email: string): Promise<void> {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, await createSessionToken(uid), sessionCookieOptions());
+  jar.set(SESSION_COOKIE, await createSessionToken(email), sessionCookieOptions());
 }
 
 /** Step 1: email a one-time code to a resident address. */
@@ -52,7 +52,7 @@ export async function requestCode(formData: FormData): Promise<void> {
   redirect(loginUrl({ step: "code", email, next }));
 }
 
-/** Step 2: check the code and start a session as that person's uid. */
+/** Step 2: check the code and start a session as that person. */
 export async function submitCode(formData: FormData): Promise<void> {
   const next = safeNext(formData);
   const email = String(formData.get("email") ?? "")
@@ -74,7 +74,7 @@ export async function submitCode(formData: FormData): Promise<void> {
     redirect(loginUrl({ err: "expired", email, next }));
   }
 
-  await startSession(person.uid);
+  await startSession(person.email);
   redirect(next);
 }
 
@@ -95,6 +95,8 @@ export async function login(formData: FormData): Promise<void> {
     redirect(loginUrl({ err: "passphrase", mode: "passphrase", next }));
   }
 
-  await startSession((process.env.SITE_OWNER_UID ?? "aperkel").toLowerCase());
+  await startSession(
+    (process.env.SITE_OWNER_EMAIL ?? "me@aaronperkel.com").toLowerCase(),
+  );
   redirect(next);
 }

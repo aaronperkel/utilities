@@ -304,31 +304,31 @@ export async function savePerson(formData: FormData): Promise<void> {
 
   const action = String(formData.get("person_action") ?? "add");
   const name = String(formData.get("person_name") ?? "").trim();
-  const uid = String(formData.get("person_uid") ?? "").trim();
-  const email = String(formData.get("person_email") ?? "").trim();
+  // Email doubles as the login identity, so keep it normalized
+  const email = String(formData.get("person_email") ?? "").trim().toLowerCase();
   const isAdmin = formData.get("person_is_admin") ? 1 : 0;
 
-  if (!name || !uid || !email) fail("Name, login ID, and email are all required.", HOUSEHOLD);
+  if (!name || !email) fail("Name and email are both required.", HOUSEHOLD);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail("Invalid email address.", HOUSEHOLD);
 
   try {
     if (action === "add") {
       await execute(
-        "INSERT INTO people (name, uid, email, is_admin) VALUES (?, ?, ?, ?)",
-        [name, uid, email, isAdmin],
+        "INSERT INTO people (name, email, is_admin) VALUES (?, ?, ?)",
+        [name, email, isAdmin],
       );
     } else {
       const id = Number(formData.get("person_id"));
       if (!id) fail("Invalid user ID.", HOUSEHOLD);
       await execute(
-        "UPDATE people SET name=?, uid=?, email=?, is_admin=? WHERE id=?",
-        [name, uid, email, isAdmin, id],
+        "UPDATE people SET name=?, email=?, is_admin=? WHERE id=?",
+        [name, email, isAdmin, id],
       );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     fail(
-      /duplicate/i.test(message) ? "That name or login ID is already in use." : `Database error: ${message}`,
+      /duplicate/i.test(message) ? "That name or email is already in use." : `Database error: ${message}`,
       HOUSEHOLD,
     );
   }

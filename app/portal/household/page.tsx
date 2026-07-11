@@ -33,7 +33,7 @@ export default async function HouseholdPage({
     getRentConfig(),
     getReminderConfig(),
     query<RowDataPacket>(
-      "SELECT id, name, uid, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
+      "SELECT id, name, email, is_admin AS isAdmin FROM people ORDER BY name ASC",
     ),
   ]);
 

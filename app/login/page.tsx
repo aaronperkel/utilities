@@ -39,7 +39,7 @@ export default async function LoginPage({
   );
 
   let body: React.ReactNode;
-  if (mode === "passphrase") {
+  if (mode === "passphrase" && passphraseEnabled) {
     body = (
       <>
         <p className="mt-1 mb-5 text-sm text-ink-muted">
@@ -134,14 +134,16 @@ export default async function LoginPage({
             Email me a code
           </button>
         </form>
-        <p className="mt-4 text-center text-sm">
-          <Link
-            className="text-ink-muted underline"
-            href={loginHref({ mode: "passphrase" })}
-          >
-            Use the house passphrase instead
-          </Link>
-        </p>
+        {passphraseEnabled && (
+          <p className="mt-4 text-center text-sm">
+            <Link
+              className="text-ink-muted underline"
+              href={loginHref({ mode: "passphrase" })}
+            >
+              Use the house passphrase instead
+            </Link>
+          </p>
+        )}
       </>
     );
   }

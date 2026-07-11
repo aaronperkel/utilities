@@ -6,7 +6,6 @@ import { removePerson, savePerson } from "@/app/portal/actions";
 export interface PersonDetail {
   id: number;
   name: string;
-  uid: string | null;
   email: string | null;
   isAdmin: number;
 }
@@ -35,7 +34,6 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
           <thead>
             <tr>
               <th>Name</th>
-              <th>Login ID</th>
               <th>Email</th>
               <th>Role</th>
               <th className="num">
@@ -47,7 +45,6 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
             {people.map((p) => (
               <tr key={p.id}>
                 <td className="font-medium">{p.name}</td>
-                <td className="figure text-ink-muted">{p.uid ?? ""}</td>
                 <td className="text-ink-muted">{p.email ?? ""}</td>
                 <td>
                   {p.isAdmin ? (
@@ -83,7 +80,7 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
             ))}
             {people.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-ink-muted">
+                <td colSpan={4} className="text-center text-ink-muted">
                   No residents yet.
                 </td>
               </tr>
@@ -106,28 +103,16 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
             <form action={savePerson}>
               <input type="hidden" name="person_action" value={editing ? "edit" : "add"} />
               {editing && <input type="hidden" name="person_id" value={editing.id} />}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="field-label" htmlFor="person_name">Name</label>
-                  <input
-                    className="field-input"
-                    id="person_name"
-                    name="person_name"
-                    defaultValue={editing?.name ?? ""}
-                    required
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="person_uid">Login ID</label>
-                  <input
-                    className="field-input figure"
-                    id="person_uid"
-                    name="person_uid"
-                    defaultValue={editing?.uid ?? ""}
-                    required
-                  />
-                </div>
+              <div>
+                <label className="field-label" htmlFor="person_name">Name</label>
+                <input
+                  className="field-input"
+                  id="person_name"
+                  name="person_name"
+                  defaultValue={editing?.name ?? ""}
+                  required
+                  autoFocus
+                />
               </div>
               <div className="mt-4">
                 <label className="field-label" htmlFor="person_email">Email</label>
@@ -139,6 +124,9 @@ export default function UsersSection({ people }: { people: PersonDetail[] }) {
                   defaultValue={editing?.email ?? ""}
                   required
                 />
+                <p className="mt-1 text-xs text-ink-muted">
+                  Also how they sign in — codes are emailed here.
+                </p>
               </div>
               <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-sm">
                 <input

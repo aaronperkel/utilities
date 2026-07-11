@@ -10,8 +10,9 @@ function secretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(uid: string): Promise<string> {
-  return new SignJWT({ uid })
+/** Sessions are keyed by the person's email — the only identity we track. */
+export async function createSessionToken(email: string): Promise<string> {
+  return new SignJWT({ email })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
@@ -19,7 +20,7 @@ export async function createSessionToken(uid: string): Promise<string> {
 }
 
 export interface SessionInfo {
-  uid: string;
+  email: string;
   issuedAt: number | null; // unix seconds, for sliding renewal
 }
 
@@ -27,9 +28,9 @@ export interface SessionInfo {
 export async function readSessionToken(token: string): Promise<SessionInfo | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    if (typeof payload.uid !== "string") return null;
+    if (typeof payload.email !== "string") return null;
     return {
-      uid: payload.uid,
+      email: payload.email,
       issuedAt: typeof payload.iat === "number" ? payload.iat : null,
     };
   } catch {
@@ -37,18 +38,13 @@ export async function readSessionToken(token: string): Promise<SessionInfo | nul
   }
 }
 
-/** Verify a raw session JWT; returns the uid or null. */
-export async function verifySessionToken(token: string): Promise<string | null> {
-  return (await readSessionToken(token))?.uid ?? null;
-}
-
-/** Current NetID from the session cookie, with the local-dev mock as fallback. */
-export async function getSessionUid(): Promise<string | null> {
+/** Current login email from the session cookie, with the local-dev mock as fallback. */
+export async function getSessionEmail(): Promise<string | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
-    const uid = await verifySessionToken(token);
-    if (uid) return uid;
+    const session = await readSessionToken(token);
+    if (session) return session.email;
   }
   return process.env.APP_LOCAL_DEV_USER || null;
 }

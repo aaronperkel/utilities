@@ -1,40 +1,31 @@
 import { redirect } from "next/navigation";
 import { RowDataPacket } from "mysql2";
 import { query } from "@/lib/db";
-import { getSessionUid } from "@/lib/session";
+import { getSessionEmail } from "@/lib/session";
 
 export interface Person extends RowDataPacket {
   id: number;
   name: string;
-  uid: string;
   email: string;
   isAdmin: number;
 }
 
-export async function getPersonByUid(uid: string): Promise<Person | null> {
-  const rows = await query<Person>(
-    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people WHERE uid = ?",
-    [uid],
-  );
-  return rows[0] ?? null;
-}
-
 export async function getPersonByEmail(email: string): Promise<Person | null> {
   const rows = await query<Person>(
-    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people WHERE LOWER(email) = ? ORDER BY id LIMIT 1",
+    "SELECT id, name, email, is_admin AS isAdmin FROM people WHERE LOWER(email) = ? LIMIT 1",
     [email.toLowerCase()],
   );
   return rows[0] ?? null;
 }
 
-/** Current people row for the logged-in uid, or null. */
+/** Current people row for the logged-in email, or null. */
 export async function getCurrentPerson(): Promise<Person | null> {
-  const uid = await getSessionUid();
-  if (!uid) return null;
-  return getPersonByUid(uid);
+  const email = await getSessionEmail();
+  if (!email) return null;
+  return getPersonByEmail(email);
 }
 
-/** Halt (redirect to the 403 page) unless the uid is registered in people. */
+/** Halt (redirect to the 403 page) unless the login email is registered in people. */
 export async function requireUser(): Promise<Person> {
   const person = await getCurrentPerson();
   if (!person) redirect("/no-access");

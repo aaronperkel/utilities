@@ -10,8 +10,7 @@
 CREATE TABLE people (
     id       INT UNSIGNED  NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name     VARCHAR(100)  NOT NULL UNIQUE,
-    uid      VARCHAR(64)   NOT NULL UNIQUE, -- login uid (historically the UVM NetID)
-    email    VARCHAR(254)  NOT NULL,
+    email    VARCHAR(254)  NOT NULL UNIQUE, -- also the login identity (one-time codes are emailed here)
     is_admin TINYINT(1)    NOT NULL DEFAULT 0
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

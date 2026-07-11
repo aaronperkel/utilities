@@ -24,7 +24,7 @@ export async function middleware(req: NextRequest) {
     if (age > RENEW_AFTER_SECONDS) {
       res.cookies.set(
         SESSION_COOKIE,
-        await createSessionToken(session.uid),
+        await createSessionToken(session.email),
         sessionCookieOptions(),
       );
     }
