@@ -35,27 +35,26 @@ export default async function PortalPage({
 }: {
   searchParams: Promise<{ page?: string; ok?: string; err?: string }>;
 }) {
-  await requireAdmin();
   const { page, ok, err } = await searchParams;
 
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
   const currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [billTypes, owedAmounts, totalBills] = await Promise.all([
+  // One round-trip wave for everything except who-owes (which needs the bill
+  // ids). requireAdmin joins the batch: on failure its redirect throws and
+  // the fetched data is discarded unrendered.
+  const [, billTypes, owedAmounts, totalBills, peopleRows, bills] = await Promise.all([
+    requireAdmin(),
     getBillTypes(),
     getOwedAmounts(),
     getTotalBillCount(),
+    query<RowDataPacket>("SELECT id, name FROM people ORDER BY name ASC"),
+    getBillsForPage(billsPerPage, (currentPage - 1) * billsPerPage),
   ]);
-
-  const peopleRows = await query<RowDataPacket>(
-    "SELECT id, name FROM people ORDER BY name ASC",
-  );
   const allPeople = peopleRows.map((p) => ({ id: Number(p.id), name: String(p.name) }));
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
   if (currentPage > totalPages && totalBills > 0) redirect(`/portal?page=${totalPages}`);
-
-  const bills = await getBillsForPage(billsPerPage, (currentPage - 1) * billsPerPage);
 
   // One query for "who still owes" across every bill on this page
   const owingByBill = new Map<number, Set<number>>();

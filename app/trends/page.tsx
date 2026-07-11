@@ -12,10 +12,42 @@ function money(n: number): string {
 }
 
 export default async function TrendsPage() {
-  await requireUser();
+  const now = new Date();
+  const lastYearMonth = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const emojiMap = await getEmojiMap();
-  const { labels: allLabels, monthly } = await getMonthlyTotals();
+  // Nothing here depends on who is logged in, so every query — and the auth
+  // check itself — runs in one round-trip wave. If auth fails, requireUser's
+  // redirect throws and none of the fetched data is rendered.
+  const [, emojiMap, { labels: allLabels, monthly }, lastYearRows, ytdRows, allTimeRows] =
+    await Promise.all([
+      requireUser(),
+      getEmojiMap(),
+      getMonthlyTotals(),
+      // This time last year
+      query<RowDataPacket>(
+        `SELECT t.name AS typeName, SUM(b.total) AS total
+         FROM bills b
+         JOIN bill_types t ON t.id = b.type_id
+         WHERE DATE_FORMAT(b.bill_date, '%Y-%m') = ? AND t.name IN ('Gas','Electric','Internet')
+         GROUP BY typeName`,
+        [lastYearMonth],
+      ),
+      // YTD totals
+      query<RowDataPacket>(
+        `SELECT t.name AS typeName, SUM(b.total) AS total
+         FROM bills b
+         JOIN bill_types t ON t.id = b.type_id
+         WHERE YEAR(b.bill_date) = YEAR(CURDATE())
+         GROUP BY typeName`,
+      ),
+      // All-time totals since move-in
+      query<RowDataPacket>(
+        `SELECT t.name AS typeName, SUM(b.total) AS total, MIN(b.bill_date) AS firstBill
+         FROM bills b
+         JOIN bill_types t ON t.id = b.type_id
+         GROUP BY typeName`,
+      ),
+    ]);
 
   // Chart: last 12 months + same-month-last-year overlay
   const labels = allLabels.slice(-12);
@@ -24,17 +56,6 @@ export default async function TrendsPage() {
   const gasLY = lastYearSeries(labels, monthly, "Gas");
   const elecLY = lastYearSeries(labels, monthly, "Electric");
 
-  // This time last year
-  const now = new Date();
-  const lastYearMonth = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const lastYearRows = await query<RowDataPacket>(
-    `SELECT t.name AS typeName, SUM(b.total) AS total
-     FROM bills b
-     JOIN bill_types t ON t.id = b.type_id
-     WHERE DATE_FORMAT(b.bill_date, '%Y-%m') = ? AND t.name IN ('Gas','Electric','Internet')
-     GROUP BY typeName`,
-    [lastYearMonth],
-  );
   const lastYearTotals: Record<string, number | null> = {
     Gas: null,
     Electric: null,
@@ -42,24 +63,8 @@ export default async function TrendsPage() {
   };
   for (const r of lastYearRows) lastYearTotals[r.typeName] = Number(r.total);
 
-  // YTD totals
-  const ytdRows = await query<RowDataPacket>(
-    `SELECT t.name AS typeName, SUM(b.total) AS total
-     FROM bills b
-     JOIN bill_types t ON t.id = b.type_id
-     WHERE YEAR(b.bill_date) = YEAR(CURDATE())
-     GROUP BY typeName`,
-  );
   const ytdByItem: Record<string, number> = {};
   for (const r of ytdRows) ytdByItem[r.typeName] = Number(r.total);
-
-  // All-time totals since move-in
-  const allTimeRows = await query<RowDataPacket>(
-    `SELECT t.name AS typeName, SUM(b.total) AS total, MIN(b.bill_date) AS firstBill
-     FROM bills b
-     JOIN bill_types t ON t.id = b.type_id
-     GROUP BY typeName`,
-  );
   const allTimeByItem: Record<string, number> = {};
   let allTimeGrand = 0;
   let moveInDate: string | null = null;

@@ -47,17 +47,17 @@ export default async function DashboardPage({
   const billsPerPage = Number(process.env.APP_BILLS_PER_PAGE ?? 10);
   const currentPage = Math.max(1, Number(page ?? 1) || 1);
 
-  const [owedAmount, owedBillIds, totalBills, nextDue] = await Promise.all([
+  const [owedAmount, owedBillIds, totalBills, nextDue, bills] = await Promise.all([
     getUserOwedAmount(person.id),
     getUserOwedBillIds(person.id),
     getTotalBillCount(),
     getUserNextDue(person.id),
+    getBillsForPage(billsPerPage, (currentPage - 1) * billsPerPage),
   ]);
 
   const totalPages = totalBills > 0 ? Math.ceil(totalBills / billsPerPage) : 1;
   if (currentPage > totalPages && totalBills > 0) redirect(`/?page=${totalPages}`);
 
-  const bills = await getBillsForPage(billsPerPage, (currentPage - 1) * billsPerPage);
   const billsByYear = groupBillsByYear(bills);
 
   const today = new Date().toLocaleDateString("en-US", {

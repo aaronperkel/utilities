@@ -227,4 +227,9 @@ html {
   .flash-err {
     @apply border-unpaid/40 bg-unpaid-soft text-ink;
   }
+
+  /* Route-loading placeholder blocks (loading.tsx skeletons) */
+  .skeleton {
+    @apply animate-pulse rounded-(--radius-sm) bg-panel-2;
+  }
 }
