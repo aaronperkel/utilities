@@ -8,20 +8,36 @@ import { execute, query } from "@/lib/db";
 
 const CODE_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
-const MAX_CODES_PER_WINDOW = 3;
+const MAX_CODES_PER_WINDOW = 5;
+const DEDUPE_SECONDS = 30;
 
 function hashCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
 }
 
-/** Create and store a fresh code for the person, or null when rate-limited. */
-export async function createLoginCode(personId: number): Promise<string | null> {
+export type CreateCodeResult =
+  | { kind: "created"; code: string; id: number }
+  | { kind: "recent" } // a live code was minted seconds ago — it's already in flight
+  | { kind: "rate-limited" };
+
+/** Create and store a fresh code for the person, dedupe a burst of requests, or rate-limit. */
+export async function createLoginCode(personId: number): Promise<CreateCodeResult> {
   const recent = await query<RowDataPacket>(
-    `SELECT COUNT(*) AS n FROM login_codes
+    `SELECT
+       COUNT(*) AS windowCount,
+       COALESCE(SUM(created_at > UTC_TIMESTAMP() - INTERVAL ${DEDUPE_SECONDS} SECOND
+                    AND attempts < ${MAX_ATTEMPTS}), 0) AS burstCount
+     FROM login_codes
      WHERE person_id = ? AND created_at > UTC_TIMESTAMP() - INTERVAL ${CODE_TTL_MINUTES} MINUTE`,
     [personId],
   );
-  if (Number(recent[0]?.n ?? 0) >= MAX_CODES_PER_WINDOW) return null;
+  // Double-taps on a slow submit button used to mint one code per tap and
+  // exhaust the window in a second; a code from the last few seconds still
+  // answers this request, so don't create (or count) another.
+  if (Number(recent[0]?.burstCount ?? 0) > 0) return { kind: "recent" };
+  if (Number(recent[0]?.windowCount ?? 0) >= MAX_CODES_PER_WINDOW) {
+    return { kind: "rate-limited" };
+  }
 
   // Opportunistic cleanup; the hour of grace keeps the rate-limit window honest
   await execute(
@@ -29,12 +45,18 @@ export async function createLoginCode(personId: number): Promise<string | null> 
   );
 
   const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
-  await execute(
+  const result = await execute(
     `INSERT INTO login_codes (person_id, code_hash, created_at, expires_at)
      VALUES (?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL ${CODE_TTL_MINUTES} MINUTE)`,
     [personId, hashCode(code)],
   );
-  return code;
+  return { kind: "created", code, id: result.insertId };
+}
+
+/** Release a code that never reached the person (e.g. the email failed),
+ *  so it doesn't count against the rate-limit window. */
+export async function deleteLoginCode(id: number): Promise<void> {
+  await execute("DELETE FROM login_codes WHERE id = ?", [id]);
 }
 
 interface LoginCodeRow extends RowDataPacket {

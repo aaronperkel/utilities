@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPersonByEmail } from "@/lib/auth";
 import { loginCodeEmailHtml, emailIdentity } from "@/lib/emails";
-import { createLoginCode, verifyLoginCode } from "@/lib/login-codes";
+import { createLoginCode, deleteLoginCode, verifyLoginCode } from "@/lib/login-codes";
 import { sendSmtpMail } from "@/lib/mail";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
 
@@ -35,19 +35,23 @@ export async function requestCode(formData: FormData): Promise<void> {
     redirect(loginUrl({ err: "unknown-email", email, next }));
   }
 
-  const code = await createLoginCode(person.id);
-  if (!code) {
+  const created = await createLoginCode(person.id);
+  if (created.kind === "rate-limited") {
     redirect(loginUrl({ err: "rate-limited", email, next }));
   }
 
-  const sent = await sendSmtpMail(
-    person.email,
-    `${code} is your Perk Utilities login code`,
-    loginCodeEmailHtml({ personName: person.name, code }, emailIdentity()),
-  );
-  if (!sent) {
-    redirect(loginUrl({ err: "send-failed", email, next }));
+  if (created.kind === "created") {
+    const sent = await sendSmtpMail(
+      person.email,
+      `${created.code} is your Perk Utilities login code`,
+      loginCodeEmailHtml({ personName: person.name, code: created.code }, emailIdentity()),
+    );
+    if (!sent) {
+      await deleteLoginCode(created.id);
+      redirect(loginUrl({ err: "send-failed", email, next }));
+    }
   }
+  // "recent" falls through: a code sent seconds ago answers this request too
 
   redirect(loginUrl({ step: "code", email, next }));
 }

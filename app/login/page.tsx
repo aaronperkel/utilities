@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
 import { login, requestCode, submitCode } from "./actions";
 
 export const metadata: Metadata = { title: "Log in — Perk Utilities" };
@@ -59,9 +60,9 @@ export default async function LoginPage({
             autoFocus
             required
           />
-          <button className="btn btn-primary mt-5 w-full" type="submit">
+          <SubmitButton className="btn btn-primary mt-5 w-full" pendingLabel="Checking…">
             Unlock
-          </button>
+          </SubmitButton>
         </form>
         <p className="mt-4 text-center text-sm">
           <Link className="text-ink-muted underline" href={loginHref()}>
@@ -97,9 +98,9 @@ export default async function LoginPage({
             autoFocus
             required
           />
-          <button className="btn btn-primary mt-5 w-full" type="submit">
+          <SubmitButton className="btn btn-primary mt-5 w-full" pendingLabel="Signing in…">
             Sign in
-          </button>
+          </SubmitButton>
         </form>
         <p className="mt-4 text-center text-sm">
           <Link className="text-ink-muted underline" href={loginHref({ email })}>
@@ -130,9 +131,9 @@ export default async function LoginPage({
             autoFocus
             required
           />
-          <button className="btn btn-primary mt-5 w-full" type="submit">
+          <SubmitButton className="btn btn-primary mt-5 w-full" pendingLabel="Sending code…">
             Email me a code
-          </button>
+          </SubmitButton>
         </form>
         {passphraseEnabled && (
           <p className="mt-4 text-center text-sm">
@@ -149,7 +150,7 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="mx-auto max-w-sm py-16">
+    <main className="mx-auto max-w-sm py-10 sm:py-16">
       <div className="panel p-6">
         <span className="eyebrow mb-1">Private site</span>
         <h1 className="text-lg font-bold">Resident access</h1>
