@@ -18,14 +18,28 @@ export async function createSessionToken(uid: string): Promise<string> {
     .sign(secretKey());
 }
 
-/** Verify a raw session JWT; returns the NetID or null. Edge-safe (used by middleware). */
-export async function verifySessionToken(token: string): Promise<string | null> {
+export interface SessionInfo {
+  uid: string;
+  issuedAt: number | null; // unix seconds, for sliding renewal
+}
+
+/** Verify a raw session JWT and return its claims. Edge-safe (used by middleware). */
+export async function readSessionToken(token: string): Promise<SessionInfo | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    return typeof payload.uid === "string" ? payload.uid : null;
+    if (typeof payload.uid !== "string") return null;
+    return {
+      uid: payload.uid,
+      issuedAt: typeof payload.iat === "number" ? payload.iat : null,
+    };
   } catch {
     return null;
   }
+}
+
+/** Verify a raw session JWT; returns the uid or null. */
+export async function verifySessionToken(token: string): Promise<string | null> {
+  return (await readSessionToken(token))?.uid ?? null;
 }
 
 /** Current NetID from the session cookie, with the local-dev mock as fallback. */

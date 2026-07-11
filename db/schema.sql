@@ -47,6 +47,19 @@ CREATE TABLE bill_debts (
     KEY idx_bill_debts_person (person_id)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- One-time email login codes (lib/login-codes.ts). Codes are 6 digits,
+-- hashed at rest, valid 10 minutes, dead after 5 wrong guesses. Rows are
+-- deleted on successful login; long-expired rows are swept opportunistically.
+CREATE TABLE login_codes (
+    id         INT UNSIGNED     NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    person_id  INT UNSIGNED     NOT NULL,           -- references people.id
+    code_hash  CHAR(64)         NOT NULL,           -- sha256 hex of the code
+    attempts   TINYINT UNSIGNED NOT NULL DEFAULT 0, -- wrong guesses so far
+    created_at DATETIME         NOT NULL,           -- UTC; rate-limit window
+    expires_at DATETIME         NOT NULL,           -- UTC
+    KEY idx_login_codes_person (person_id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Single-row config (the app reads the newest row) for the calendar feed.
 CREATE TABLE rent_config (
     id           INT UNSIGNED  NOT NULL AUTO_INCREMENT PRIMARY KEY,

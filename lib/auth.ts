@@ -19,6 +19,14 @@ export async function getPersonByUid(uid: string): Promise<Person | null> {
   return rows[0] ?? null;
 }
 
+export async function getPersonByEmail(email: string): Promise<Person | null> {
+  const rows = await query<Person>(
+    "SELECT id, name, uid, email, is_admin AS isAdmin FROM people WHERE LOWER(email) = ? ORDER BY id LIMIT 1",
+    [email.toLowerCase()],
+  );
+  return rows[0] ?? null;
+}
+
 /** Current people row for the logged-in uid, or null. */
 export async function getCurrentPerson(): Promise<Person | null> {
   const uid = await getSessionUid();

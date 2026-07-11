@@ -21,7 +21,7 @@ There is no test suite; `npm run build` (which typechecks) plus hitting routes a
 
 ## Configuration
 
-Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (login gate; login always fails while `SITE_PASSPHRASE` is unset), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set), `CRON_SECRET` (bearer token for `/api/cron/reminders`; must match the GitHub Actions repo secret of the same name).
+Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_UID` (fallback passphrase login; that path always fails while `SITE_PASSPHRASE` is unset — the primary email-code login needs only SMTP), `APP_LOCAL_DEV_USER` (set to a uid to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set), `CRON_SECRET` (bearer token for `/api/cron/reminders`; must match the GitHub Actions repo secret of the same name).
 
 The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000, reachable from anywhere). The legacy copy on `webdb.uvm.edu` (UVM-network-only, shared with the retired PHP site) is frozen at migration time; `scripts/migrate-to-tidb.ts` did the one-time copy and rename.
 
@@ -29,16 +29,17 @@ The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000,
 
 ### Auth flow
 
-Interim passphrase gate (UVM CAS was removed when the site moved to Vercel — no UVM-network dependencies; the CAS implementation is in git history if ever needed): `middleware.ts` requires a valid session cookie for everything except `/login`, `/cal.ics`, `/api/unpaid`, `/no-access`, and static assets, and redirects to `/login`. The login form (`app/login/`) checks the passphrase against `SITE_PASSPHRASE` (timing-safe) and sets a 30-day jose-signed cookie whose uid is `SITE_OWNER_UID` (default `aperkel`). Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the uid against `people.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting). The root layout's `getCurrentPerson()` returns null without a DB round-trip when logged out, so `/login` renders even if the DB is unreachable.
+Per-person email-code login (UVM CAS was removed when the site moved to Vercel — no UVM-network dependencies; the CAS implementation is in git history if ever needed): `middleware.ts` requires a valid session cookie for everything except `/login`, `/cal.ics`, `/api/unpaid`, `/no-access`, and static assets, redirects to `/login`, and silently re-issues the 30-day jose-signed cookie once it is a week old (sliding renewal — monthly visitors never re-login). `/login` (`app/login/`) is a two-step form: enter a `people.email` address → a 6-digit one-time code is emailed (`lib/login-codes.ts`: sha256-hashed in the `login_codes` table, 10-minute TTL, 5 wrong guesses kill it, 3 codes per person per window, deleted on success) → correct code sets the session cookie with **that person's uid**. The code input uses `autocomplete="one-time-code"` so Apple Mail/Safari autofill the code. A fallback passphrase form (`/login?mode=passphrase`) checks `SITE_PASSPHRASE` (timing-safe) and logs in as `SITE_OWNER_UID` (default `aperkel`); that path dies if `SITE_PASSPHRASE` is unset. Middleware only checks cookie validity; **page-level authorization** is `requireUser()` / `requireAdmin()` (`lib/auth.ts`), which check the uid against `people.uid` / `is_admin` and redirect to `/no-access`. Server actions use `requireAdminAction()` (throws instead of redirecting). The root layout's `getCurrentPerson()` returns null without a DB round-trip when logged out, so `/login` renders even if the DB is unreachable.
 
 ### Database
 
-Six tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
+Seven tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
 
 - `people` (`id`, `name`, `uid` = login id, `email`, `is_admin`)
 - `bills` (`id`, `type_id` → `bill_types`, `bill_date`, `due_date`, `total`, `per_person_cost`, `status` enum `'unpaid'|'paid'`, `pdf_path`)
 - `bill_debts` (`bill_id`, `person_id`) — junction: who still owes; **rows are deleted as people pay**
 - `bill_types` (`id`, `name`, `emoji`, `processing_fee`) — drives the add-bill dropdown, emoji display, and fee math
+- `login_codes` (`person_id`, `code_hash`, `attempts`, `created_at`, `expires_at`) — live one-time login codes; see Auth flow
 - `rent_config` — single-row rent amount + lease range for the calendar feed
 - `reminder_config` — single-row reminder schedule (enabled, ET send hour, heads-up/urgent day offsets) plus cron bookkeeping (`last_run_at`, `last_send_date` once-per-day guard, `last_sent_at`/`last_sent_count`); edited in portal → Household
 
@@ -62,7 +63,7 @@ Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) wi
 
 ### Email
 
-`lib/mail.ts` (nodemailer, iCloud SMTP/STARTTLS; login is `SMTP_USER` falling back to the from address — iCloud logs in as the primary address even when sending From an alias like noreply@; Reply-To is the human `contactAddress()`) + `lib/emails.ts` (statement-portal-styled templates — shared `emailShell` with mono eyebrows/ruled tables mirroring the site's light tokens; inline styles only, email clients ignore stylesheets; light-theme only on purpose). All five emails (reminder, new bill, custom, batch + bulk confirmations) go through these templates. `sendSmtpMail` returns false on failure (logged, not thrown); callers are responsible for surfacing failures.
+`lib/mail.ts` (nodemailer, iCloud SMTP/STARTTLS; login is `SMTP_USER` falling back to the from address — iCloud logs in as the primary address even when sending From an alias like noreply@; Reply-To is the human `contactAddress()`) + `lib/emails.ts` (statement-portal-styled templates — shared `emailShell` with mono eyebrows/ruled tables mirroring the site's light tokens; inline styles only, email clients ignore stylesheets; light-theme only on purpose). All six emails (reminder, new bill, login code, custom, batch + bulk confirmations) go through these templates. `sendSmtpMail` returns false on failure (logged, not thrown); callers are responsible for surfacing failures.
 
 ### Styling
 

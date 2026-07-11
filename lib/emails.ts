@@ -203,6 +203,30 @@ export function reminderEmailHtml(
   return emailShell(body, id, `${p.item} — your share $${money(p.cost)}, due ${due}.`);
 }
 
+/** One-time login code (app/login). The code leads the subject so it shows
+ *  in notification previews and Apple Mail's code autofill. */
+export function loginCodeEmailHtml(
+  p: { personName: string; code: string },
+  id: EmailIdentity,
+): string {
+  const body =
+    eyebrow("Sign-in code") +
+    heading("Your one-time login code") +
+    paragraph(
+      `Hello ${esc(p.personName)}, enter this code on the login page to sign in. ` +
+        `It expires in 10 minutes.`,
+    ) +
+    `<div style="margin:4px 0 18px;padding:18px 2px;border-top:1px solid ${LINE};` +
+    `border-bottom:1px solid ${LINE};text-align:center;font-family:${MONO};` +
+    `font-size:30px;font-weight:600;letter-spacing:0.35em;text-indent:0.35em;` +
+    `color:${INK};">${esc(p.code)}</div>` +
+    paragraph(
+      `<span style="color:${INK_MUTED};font-size:13px;">Didn't try to sign in? ` +
+        `You can safely ignore this email.</span>`,
+    );
+  return emailShell(body, id, `${p.code} is your login code.`);
+}
+
 export function newBillEmailHtml(
   p: {
     personName: string;
