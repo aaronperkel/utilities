@@ -189,7 +189,9 @@ export async function runReminderBatch(opts: {
     console.log(`Batch confirmation sent to ${confirmTo}`);
   }
 
-  // Bookkeeping for the portal readout + the once-per-day guard. Best effort:
+  // Bookkeeping for the portal readout + the once-per-day guard. A batch
+  // where every send failed does NOT stamp last_send_date, so the next
+  // matching hour retries instead of writing the day off. Best effort:
   // a batch that sent mail but can't record it shouldn't crash the run.
   try {
     if (sent.length > 0) {
@@ -198,7 +200,7 @@ export async function runReminderBatch(opts: {
          SET last_send_date = ?, last_sent_at = UTC_TIMESTAMP(), last_sent_count = ?`,
         [nyDate(), sent.length],
       );
-    } else {
+    } else if (failed === 0) {
       await execute("UPDATE reminder_config SET last_send_date = ?", [nyDate()]);
     }
   } catch {

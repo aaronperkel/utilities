@@ -60,5 +60,11 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await runReminderBatch(config);
+  if (result.sent === 0 && result.failed > 0) {
+    // Total failure (e.g. SMTP auth broken): 500 turns the GitHub Actions
+    // run red so it emails the admin; last_send_date was not stamped, so
+    // tomorrow's window retries.
+    return NextResponse.json({ ok: false, ...result }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, ...result });
 }

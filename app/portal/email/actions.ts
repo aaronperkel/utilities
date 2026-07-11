@@ -34,15 +34,29 @@ export async function sendCustomEmail(
   const html = customEmailHtml(bodyRaw, id);
   const emailMap = await getEmailMap();
 
+  if (Object.keys(emailMap).length === 0) {
+    return { errors: ["No recipients configured. Email not sent."], subject, body: bodyRaw };
+  }
+
   const sentTo: string[] = [];
+  const failedTo: string[] = [];
   for (const [name, to] of Object.entries(emailMap)) {
     if (!to) continue;
     if (await sendSmtpMail(to, subject, html)) {
       sentTo.push(`${name} &lt;${to}&gt;`);
+    } else {
+      failedTo.push(name);
     }
   }
-  if (Object.keys(emailMap).length === 0) {
-    return { errors: ["No recipients configured. Email not sent."], subject, body: bodyRaw };
+
+  if (sentTo.length === 0) {
+    return {
+      errors: [
+        "No emails were sent — every SMTP attempt failed. Check EMAIL_PASS / SMTP_USER in the server env (Vercel logs have the exact error).",
+      ],
+      subject,
+      body: bodyRaw,
+    };
   }
 
   const confirmTo = process.env.APP_CONFIRMATION_EMAIL_TO;
@@ -59,5 +73,9 @@ export async function sendCustomEmail(
   }
 
   revalidatePath("/portal/email");
-  redirect(`/portal/email?ok=${encodeURIComponent("Email sent to all residents.")}`);
+  const flash =
+    failedTo.length === 0
+      ? "Email sent to all residents."
+      : `Email sent to ${sentTo.length} resident${sentTo.length === 1 ? "" : "s"} — FAILED for: ${failedTo.join(", ")}.`;
+  redirect(`/portal/email?ok=${encodeURIComponent(flash)}`);
 }

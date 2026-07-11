@@ -10,7 +10,9 @@ function getTransporter(): nodemailer.Transporter {
       secure: false,
       requireTLS: true,
       auth: {
-        user: process.env.APP_EMAIL_FROM_ADDRESS,
+        // iCloud SMTP logs in as the account's primary address even when
+        // sending From an alias (e.g. noreply@) — SMTP_USER splits the two.
+        user: process.env.SMTP_USER || process.env.APP_EMAIL_FROM_ADDRESS,
         pass: process.env.EMAIL_PASS,
       },
     });
