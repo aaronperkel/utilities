@@ -227,6 +227,16 @@ export function loginCodeEmailHtml(
   return emailShell(body, id, `${p.code} is your login code.`);
 }
 
+/** Plain-text alternative to loginCodeEmailHtml (same wording, no markup). */
+export function loginCodeEmailText(p: { personName: string; code: string }): string {
+  return (
+    `Hello ${p.personName}, enter this code on the login page to sign in. ` +
+    `It expires in 10 minutes.\n\n` +
+    `${p.code}\n\n` +
+    `Didn't try to sign in? You can safely ignore this email.`
+  );
+}
+
 export function newBillEmailHtml(
   p: {
     personName: string;

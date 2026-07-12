@@ -33,6 +33,8 @@ export async function sendSmtpMail(
   to: string,
   subject: string,
   html: string,
+  // Plain-text alternative; HTML-only messages score worse with spam filters
+  text?: string,
 ): Promise<boolean> {
   try {
     await getTransporter().sendMail({
@@ -42,6 +44,7 @@ export async function sendSmtpMail(
       to,
       subject,
       html,
+      text,
     });
     return true;
   } catch (err) {

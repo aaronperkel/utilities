@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPersonByEmail } from "@/lib/auth";
-import { loginCodeEmailHtml, emailIdentity } from "@/lib/emails";
+import { loginCodeEmailHtml, loginCodeEmailText, emailIdentity } from "@/lib/emails";
 import { createLoginCode, deleteLoginCode, verifyLoginCode } from "@/lib/login-codes";
 import { sendSmtpMail } from "@/lib/mail";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
@@ -45,6 +45,7 @@ export async function requestCode(formData: FormData): Promise<void> {
       person.email,
       `${created.code} is your Perk Utilities login code`,
       loginCodeEmailHtml({ personName: person.name, code: created.code }, emailIdentity()),
+      loginCodeEmailText({ personName: person.name, code: created.code }),
     );
     if (!sent) {
       await deleteLoginCode(created.id);
