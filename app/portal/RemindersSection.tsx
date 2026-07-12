@@ -21,10 +21,15 @@ function formatEt(utc: string): string {
   );
 }
 
-/** True when the hourly cron hasn't checked in for over two hours. */
+/**
+ * True when the cron hasn't checked in for over six hours. GitHub drops
+ * scheduled runs under congestion, so 2-3 hour gaps between hourly ticks are
+ * routine and harmless (the endpoint catches up); six quiet hours means the
+ * workflow or secret is actually broken.
+ */
 function isStale(lastRunAt: string | null): boolean {
   if (!lastRunAt) return true;
-  return Date.now() - Date.parse(lastRunAt.replace(" ", "T") + "Z") > 2 * 3600_000;
+  return Date.now() - Date.parse(lastRunAt.replace(" ", "T") + "Z") > 6 * 3600_000;
 }
 
 export default function RemindersSection({ config }: { config: ReminderConfig | null }) {

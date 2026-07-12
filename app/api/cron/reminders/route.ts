@@ -13,8 +13,10 @@ import {
 export const maxDuration = 60;
 
 // Hourly tick (GitHub Actions; a Vercel Cron would send the same header).
-// The endpoint owns the schedule: it reads reminder_config and only sends
-// during the configured hour, at most once per NY calendar day.
+// The endpoint owns the schedule: it reads reminder_config and sends on the
+// first tick at or after the configured hour, at most once per NY calendar
+// day. GitHub drops (not queues) scheduled runs under congestion, so ticks
+// regularly arrive hours apart — a strict hour match would skip whole days.
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
@@ -49,7 +51,7 @@ export async function GET(req: NextRequest) {
 
   const hour = nyHour();
   const today = nyDate();
-  if (hour !== config.sendHour) {
+  if (hour < config.sendHour) {
     return NextResponse.json({
       ok: true,
       skipped: `waiting for ${config.sendHour}:00 ET (currently ${hour}:xx ET)`,
