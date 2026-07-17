@@ -12,6 +12,7 @@ const LINE = "#dfe2e6"; // --line flattened onto white
 const LINE_SOFT = "#eef0f2"; // --line-soft flattened onto white
 const ACCENT = "#1d5fd6";
 const UNPAID = "#c03538";
+const PAID = "#187a4b";
 
 const SANS =
   "system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
@@ -265,6 +266,43 @@ export function newBillEmailHtml(
     button(p.billViewLink, "View bill PDF") +
     button(`${id.baseUrl}/`, "Open portal", "subtle");
   return emailShell(body, id, `${p.item} — your share $${money(p.cost)}, due ${due}.`);
+}
+
+/** Debounced payment receipt (lib/thanks.ts) — one email may cover several
+ *  bills settled in the same burst of checkbox activity. */
+export function paymentThanksEmailHtml(
+  p: {
+    personName: string;
+    bills: { item: string; dueDate: string; cost: number }[]; // dueDate YYYY-MM-DD
+  },
+  id: EmailIdentity,
+): string {
+  const total = p.bills.reduce((sum, b) => sum + b.cost, 0);
+  const rows: StatementRow[] = p.bills.map((b) => ({
+    label: `${b.item} — due ${formatLongDate(b.dueDate)}`,
+    value: `$${money(b.cost)}`,
+  }));
+  if (p.bills.length > 1) {
+    rows.push({ label: "Total received", value: `$${money(total)}`, strong: true, color: PAID });
+  } else {
+    rows[0].strong = true;
+    rows[0].color = PAID;
+  }
+  const plural = p.bills.length > 1;
+  const body =
+    eyebrow("Payment received", PAID) +
+    heading("Thank you for your payment") +
+    paragraph(
+      `Hello ${esc(p.personName)}, your payment${plural ? "s have" : " has"} been recorded ` +
+        `on the statement. You're all settled up on the bill${plural ? "s" : ""} below.`,
+    ) +
+    statementTable(rows) +
+    button(`${id.baseUrl}/`, "View statement", "subtle");
+  return emailShell(
+    body,
+    id,
+    `$${money(total)} received — thank you!`,
+  );
 }
 
 /** Freeform admin note (portal → Email tab), wrapped in the statement shell. */

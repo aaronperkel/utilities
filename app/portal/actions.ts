@@ -4,11 +4,13 @@ import path from "node:path";
 import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { getEmailMap, requireAdminAction } from "@/lib/auth";
 import { execute, getPool, query } from "@/lib/db";
 import { getAllPeople, getBillTypeByName, billFileHref } from "@/lib/bills";
 import { emailIdentity, formatLongDate, newBillEmailHtml, reminderEmailHtml } from "@/lib/emails";
 import { sendSmtpMail } from "@/lib/mail";
+import { cancelThanks, flushThanksQueue, queueThanks } from "@/lib/thanks";
 import { RowDataPacket } from "mysql2";
 
 function done(ok: string, path = "/portal"): never {
@@ -180,6 +182,12 @@ export async function updateOwes(
   if (statusRows.length === 0) return { ok: false, error: `Bill ${billId} not found.` };
   const currentStatus = statusRows[0].status as string;
 
+  const prevOwingRows = await query<RowDataPacket>(
+    "SELECT person_id AS personId FROM bill_debts WHERE bill_id = ?",
+    [billId],
+  );
+  const prevOwing = new Set(prevOwingRows.map((r) => Number(r.personId)));
+
   const paid = new Set(paidPersonIds.map(Number));
   const conn = await getPool().getConnection();
   let newStatus = currentStatus;
@@ -198,6 +206,19 @@ export async function updateOwes(
     if (newStatus !== currentStatus) {
       await conn.execute("UPDATE bills SET status = ? WHERE id = ?", [newStatus, billId]);
     }
+    // Thank-you receipts ride the same transaction: newly checked people are
+    // queued (debounced — see lib/thanks.ts), newly unchecked cancel theirs,
+    // so undoing a misclick within the delay window really sends nothing.
+    await queueThanks(
+      conn,
+      billId,
+      allPeople.filter((p) => paid.has(p.id) && prevOwing.has(p.id)).map((p) => p.id),
+    );
+    await cancelThanks(
+      conn,
+      billId,
+      allPeople.filter((p) => !paid.has(p.id) && !prevOwing.has(p.id)).map((p) => p.id),
+    );
     await conn.commit();
   } catch (err) {
     await conn.rollback();
@@ -206,6 +227,17 @@ export async function updateOwes(
   } finally {
     conn.release();
   }
+
+  // Piggyback flush: sends any receipts whose delay has already elapsed
+  // (never this click's — it was just queued). The hourly cron is the
+  // backstop when the portal goes quiet.
+  after(async () => {
+    try {
+      await flushThanksQueue();
+    } catch (err) {
+      console.error("thanks flush after updateOwes failed:", err);
+    }
+  });
 
   revalidatePath("/portal");
   revalidatePath("/");
@@ -346,6 +378,7 @@ export async function removePerson(formData: FormData): Promise<void> {
   if (!id) fail("Invalid user ID.", HOUSEHOLD);
   // No FK cascade on TiDB — clear their outstanding shares explicitly.
   await execute("DELETE FROM bill_debts WHERE person_id = ?", [id]);
+  await execute("DELETE FROM payment_thanks WHERE person_id = ?", [id]);
   await execute("DELETE FROM people WHERE id = ?", [id]);
   done("User removed.", HOUSEHOLD);
 }

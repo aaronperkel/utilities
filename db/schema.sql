@@ -59,6 +59,20 @@ CREATE TABLE login_codes (
     KEY idx_login_codes_person (person_id)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Debounced "thanks for your payment" receipts (lib/thanks.ts). Checking a
+-- person off a bill (updateOwes) queues a row; unchecking before it sends
+-- cancels it. Once a person's newest row is THANKS_DELAY_MINUTES old, their
+-- whole queue is flushed as a single email — so a misclick can be undone and
+-- paying several bills at once yields one message. Flushed by the hourly
+-- cron endpoint and opportunistically after portal payment edits.
+CREATE TABLE payment_thanks (
+    bill_id   INT UNSIGNED NOT NULL,
+    person_id INT UNSIGNED NOT NULL,
+    queued_at DATETIME     NOT NULL, -- UTC; re-checking restarts the debounce timer
+    PRIMARY KEY (bill_id, person_id),
+    KEY idx_payment_thanks_person (person_id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Single-row config (the app reads the newest row) for the calendar feed.
 CREATE TABLE rent_config (
     id           INT UNSIGNED  NOT NULL AUTO_INCREMENT PRIMARY KEY,

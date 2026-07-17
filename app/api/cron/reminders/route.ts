@@ -7,6 +7,7 @@ import {
   nyHour,
   runReminderBatch,
 } from "@/lib/reminders";
+import { flushThanksQueue } from "@/lib/thanks";
 
 // The batch sleeps 1s between emails, so a busy day can exceed the default
 // function timeout.
@@ -39,14 +40,18 @@ export async function GET(req: NextRequest) {
   const config = await getReminderConfig();
   await markReminderRun();
 
+  // Thank-you receipts flush on every tick — they follow their own debounce
+  // timer (lib/thanks.ts), not the daily reminder schedule below.
+  const thanks = await flushThanksQueue();
+
   if (!config) {
     return NextResponse.json(
-      { ok: false, error: "reminder_config table is missing or empty" },
+      { ok: false, error: "reminder_config table is missing or empty", thanks },
       { status: 500 },
     );
   }
   if (!config.enabled) {
-    return NextResponse.json({ ok: true, skipped: "reminders are disabled" });
+    return NextResponse.json({ ok: true, skipped: "reminders are disabled", thanks });
   }
 
   const hour = nyHour();
@@ -55,10 +60,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       skipped: `waiting for ${config.sendHour}:00 ET (currently ${hour}:xx ET)`,
+      thanks,
     });
   }
   if (config.lastSendDate === today) {
-    return NextResponse.json({ ok: true, skipped: "already ran today" });
+    return NextResponse.json({ ok: true, skipped: "already ran today", thanks });
   }
 
   const result = await runReminderBatch(config);
@@ -66,7 +72,7 @@ export async function GET(req: NextRequest) {
     // Total failure (e.g. SMTP auth broken): 500 turns the GitHub Actions
     // run red so it emails the admin; last_send_date was not stamped, so
     // tomorrow's window retries.
-    return NextResponse.json({ ok: false, ...result }, { status: 500 });
+    return NextResponse.json({ ok: false, ...result, thanks }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json({ ok: true, ...result, thanks });
 }
