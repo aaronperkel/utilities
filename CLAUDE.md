@@ -21,7 +21,7 @@ There is no test suite; `npm run build` (which typechecks) plus hitting routes a
 
 ## Configuration
 
-Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_EMAIL` (fallback passphrase login; that path always fails while `SITE_PASSPHRASE` is unset — the primary email-code login needs only SMTP), `APP_LOCAL_DEV_USER` (set to a `people.email` to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob, all PDF storage), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set), `CRON_SECRET` (bearer token for `/api/cron/reminders`; must match the GitHub Actions repo secret of the same name).
+Env lives in `.env.local` (see `.env.example` for all keys). Notable beyond the obvious DB/SMTP ones: `SESSION_SECRET` (jose cookie signing), `SITE_PASSPHRASE`/`SITE_OWNER_EMAIL` (fallback passphrase login; that path always fails while `SITE_PASSPHRASE` is unset — the primary email-code login needs only SMTP), `APP_LOCAL_DEV_USER` (set to a `people.email` to bypass login entirely — middleware short-circuits when it is set), `BLOB_READ_WRITE_TOKEN` (Vercel Blob — bill PDFs and apartment documents), `API_KEY`/`HMAC_KEY` (the public unpaid API returns 500 until `API_KEY` is set), `CRON_SECRET` (bearer token for `/api/cron/reminders`; must match the GitHub Actions repo secret of the same name).
 
 The database lives on TiDB Cloud Serverless (MySQL-compatible, TLS on port 4000, reachable from anywhere). The legacy copy on `webdb.uvm.edu` (UVM-network-only, shared with the retired PHP site) is frozen at migration time; `scripts/migrate-to-tidb.ts` did the one-time copy and rename.
 
@@ -33,7 +33,7 @@ Per-person email-code login (UVM CAS was removed when the site moved to Vercel �
 
 ### Database
 
-Eight tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
+Nine tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumbers` so DATEs are `YYYY-MM-DD` strings and DECIMALs are numbers). Current DDL is checked in at `db/schema.sql`:
 
 - `people` (`id`, `name`, `email` = also the login identity (unique), `is_admin`)
 - `bills` (`id`, `type_id` → `bill_types`, `bill_date`, `due_date`, `total`, `per_person_cost`, `status` enum `'unpaid'|'paid'`, `pdf_path`)
@@ -43,19 +43,26 @@ Eight tables via `mysql2` (`lib/db.ts`, pool with `dateStrings` + `decimalNumber
 - `payment_thanks` (`bill_id`, `person_id`, `queued_at`) — debounced thank-you receipt queue (`lib/thanks.ts`): checking someone off a bill queues a row, unchecking cancels it, and a person's queue is flushed as one email once its newest row is `THANKS_DELAY_MINUTES` (10) old — flushed by the hourly cron tick and via `after()` following portal payment edits
 - `rent_config` — single-row rent amount + lease range for the calendar feed
 - `reminder_config` — single-row reminder schedule (enabled, ET send hour, heads-up/urgent day offsets) plus cron bookkeeping (`last_run_at`, `last_send_date` once-per-day guard, `last_sent_at`/`last_sent_count`); edited in portal → Household
+- `documents` (`title`, `category`, `file_path`, `content_type`, `file_size`, `uploaded_at`, `uploaded_by`) — apartment paperwork shown at `/documents`; `category` is a key from the fixed `DOCUMENT_CATEGORIES` list in `lib/documents.ts` (deliberately *not* a table like `bill_types` — categories carry no math and would only add another CRUD surface), and `uploaded_by` is read via `LEFT JOIN people` so a document outlives the resident who added it
 
 **No FK constraints** (experimental on TiDB): integrity is app-level — `removePerson` deletes the person's `bill_debts` and `payment_thanks` rows, `removeBillType` refuses while bills reference the type. `status` is the bill's global state; a bill flips to `'paid'` only when nobody is left in `bill_debts` (see `updateOwes` in `app/portal/actions.ts`, transactional). Bill math: `total = amount + processing_fee`, `per_person_cost = round(total / peopleCount, 2)`. SQL aliases map snake_case columns to camelCase TS fields (`per_person_cost AS perPersonCost`); bill queries join `bill_types` so each `Bill` carries `typeName`/`typeEmoji`.
 
 The pre-migration schemas are history only: `git show php-final:schema.sql` (stale even for the PHP era) and the legacy `tblPeople`/`tblUtilities`/`tblBillOwes`/`tblBillTypes`/`tblRentConfig` names that `scripts/migrate-to-tidb.ts` maps from.
 
-### Bill PDFs
+### Stored files (bill PDFs + documents)
 
-Stored in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) with keys equal to `pdf_path` (`{year}/{type}/{name}.pdf`), served auth-gated by `app/files/[...path]/route.ts`, which `head()`s the key and streams the blob so its public-but-unguessable URL never leaks. `pdf_path` values are store-relative (`2026/Gas/x.pdf`); `billFileHref()` just prepends `/files/`. Uploads use `addRandomSuffix: false` + `allowOverwrite: true` so keys stay deterministic. The local `bill-pdfs/` tree is the pre-Blob copy (gitignored, kept as backup); `scripts/migrate-pdfs-to-blob.ts` did the one-time upload.
+Everything lives in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the store) with keys equal to the stored path, served auth-gated by `app/files/[...path]/route.ts`, which `head()`s the key and streams the blob so its public-but-unguessable URL never leaks. That route serves **any logged-in person** (not just admins) and is an **extension allowlist** (`SERVABLE_TYPES`: pdf/png/jpg/jpeg/heic/heif → content type, `nosniff`, no SVG) — anything else 404s, which is what keeps it from being a general blob proxy.
+
+Two writers with deliberately different key strategies:
+
+- **Bill PDFs** — `bills.pdf_path` is `{year}/{type}/{name}.pdf`; `billFileHref()` prepends `/files/`. Uploaded through the `addBill` **server action** with `addRandomSuffix: false` + `allowOverwrite: true`, so keys stay deterministic and re-posting a statement replaces it. Capped at 4MB by `experimental.serverActions.bodySizeLimit` in `next.config.ts` — Vercel hard-caps serverless request bodies at 4.5MB, so that is the real ceiling for this path. The local `bill-pdfs/` tree is the pre-Blob copy (gitignored, kept as backup); `scripts/migrate-pdfs-to-blob.ts` did the one-time upload.
+- **Documents** — `documents.file_path` always starts with `documents/` (`isDocumentPath()` enforces it on both upload and delete, so neither can reach a bill's key); `documentFileHref()` prepends `/files/`. Uploaded **client-direct** via `@vercel/blob/client` `upload()` against `app/api/documents/upload/route.ts`, which bypasses the 4.5MB body cap entirely (25MB limit, `addRandomSuffix: true` so same-named files coexist). That route is excluded from `middleware.ts` because Blob's upload-completed callback carries no session cookie; it gates on `requireAdminAction()` itself. **`onUploadCompleted` is intentionally a no-op** — it never fires against localhost, so the DB row is inserted by `addDocument()` after `upload()` resolves, which also `head()`s the key to confirm the blob exists. `removeDocument` holds the codebase's only `del()` call.
 
 ### Key surfaces
 
 - `app/page.tsx` — dashboard: statement summary strip (balance / next due / bill count), bills grouped by year, per-user paid/unpaid tags
 - `app/portal/` — admin portal in three tabs (`PortalTabs`): `/portal` = bills (who-owes strip, add-bill disclosure, payment checkboxes, per-bill reminders), `/portal/household` = residents + bill types + rent, `/portal/email` = bulk email (old `/email` URL 301s there via `next.config.ts`). All mutations are server actions; flash messages travel as `?ok=`/`?err=` query params, and `done()`/`fail()` in `actions.ts` take the destination path so household actions land back on their tab
+- `app/documents/` — apartment paperwork (lease, renters insurance, …) grouped by category. **Every resident reads it** (`requireUser()`); the add/edit/remove controls render only behind `person.isAdmin`, so this is the one non-portal surface with admin affordances inline. Nav labels it "Docs" for width
 - `app/trends/` — Chart.js line chart (last 12 months + last-year overlay, colors read from the CSS tokens at mount and rebuilt on theme change), insight columns, CSV at `/trends/csv`
 - `app/cal.ics/route.ts` — public iCal feed generated on demand (the PHP site wrote a static file after every change; here it can never go stale)
 - `app/api/unpaid/route.ts` — public JSON API, `X-Api-Key` + optional HMAC (`METHOD\nPATH\nTS\nBODY` signature, 300s skew window)

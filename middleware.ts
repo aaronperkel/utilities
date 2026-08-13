@@ -41,6 +41,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/|login|api/unpaid|api/cron|cal.ics|no-access|favicon|apple-touch-icon|site.webmanifest|web-app-manifest|og.png).*)",
+    // api/documents/upload is excluded because Vercel Blob's upload-completed
+    // callback carries no session cookie; that route gates on requireAdminAction
+    // itself and handleUpload verifies the callback signature.
+    "/((?!_next/|login|api/unpaid|api/cron|api/documents/upload|cal.ics|no-access|favicon|apple-touch-icon|site.webmanifest|web-app-manifest|og.png).*)",
   ],
 };

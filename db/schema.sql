@@ -95,3 +95,22 @@ CREATE TABLE reminder_config (
     last_sent_at         DATETIME NULL,   -- UTC; last time reminder emails actually went out
     last_sent_count      INT UNSIGNED NOT NULL DEFAULT 0
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Apartment paperwork (lease, renters insurance, ...) surfaced at /documents:
+-- every resident can read it, only admins can add/edit/remove. Files live in
+-- Vercel Blob under the 'documents/' key prefix and file_path is that blob key,
+-- streamed by app/files/[...path]/route.ts. Categories are a fixed code-side
+-- list (lib/documents.ts), not a table, so there is no CRUD surface for them.
+-- removeDocument in app/documents/actions.ts deletes the blob alongside the row.
+CREATE TABLE documents (
+    id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title        VARCHAR(150) NOT NULL,
+    category     VARCHAR(32)  NOT NULL,  -- key from DOCUMENT_CATEGORIES
+    file_path    VARCHAR(255) NOT NULL,  -- blob key, always 'documents/...'
+    content_type VARCHAR(100) NOT NULL,
+    file_size    INT UNSIGNED NOT NULL,  -- bytes
+    uploaded_at  DATETIME     NOT NULL,  -- UTC
+    uploaded_by  INT UNSIGNED NULL,      -- references people.id; NULL once that person is removed
+    KEY idx_documents_category (category),
+    KEY idx_documents_uploaded_at (uploaded_at)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

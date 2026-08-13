@@ -169,7 +169,7 @@ export default function AddBillForm({
                 accept="application/pdf"
                 required
               />
-              <small className="text-xs text-ink-muted">Max 5MB. Everyone gets a notification email.</small>
+              <small className="text-xs text-ink-muted">Max 4MB. Everyone gets a notification email.</small>
             </div>
 
             <div className="mt-5 flex gap-2">

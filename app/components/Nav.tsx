@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// "Docs" rather than "Documents": four links plus the brand overflow a 375px
+// header at the longer label. The page's own <h1> still reads "Documents".
 const baseLinks = [
   { href: "/", label: "Dashboard" },
+  { href: "/documents", label: "Docs" },
   { href: "/trends", label: "Trends" },
 ];
 

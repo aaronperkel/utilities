@@ -297,6 +297,13 @@ html {
         "actions actions";
     }
 
+    .table-stack-docs tr {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "doc kind"
+        "uploaded actions";
+    }
+
     .table-stack .cell-bill {
       grid-area: bill;
     }
@@ -332,6 +339,19 @@ html {
     .table-stack .cell-role {
       grid-area: role;
       justify-self: end;
+    }
+
+    .table-stack .cell-doc {
+      grid-area: doc;
+    }
+
+    .table-stack .cell-kind {
+      grid-area: kind;
+      justify-self: end;
+    }
+
+    .table-stack .cell-uploaded {
+      grid-area: uploaded;
     }
   }
 

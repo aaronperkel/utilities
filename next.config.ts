@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     // bouncing between Home/Trends/Portal doesn't re-query the DB each time.
     // Server actions revalidatePath, which purges this cache after mutations.
     staleTimes: { dynamic: 30 },
+    // Bill PDFs post through a server action, whose body defaults to 1MB. Vercel
+    // caps serverless request bodies at 4.5MB, so 4mb is the practical ceiling —
+    // anything larger has to go the client-direct route that /documents uses.
+    serverActions: { bodySizeLimit: "4mb" },
   },
   async redirects() {
     return [

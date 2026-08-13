@@ -68,7 +68,9 @@ export async function addBill(
   let origName = "";
   let buffer: Buffer | null = null;
   if (file instanceof File && file.size > 0) {
-    if (file.size > 5 * 1024 * 1024) errors.push("File is too large. Maximum size is 5MB.");
+    // Matches experimental.serverActions.bodySizeLimit in next.config.ts, which
+    // in turn sits under Vercel's 4.5MB request-body cap.
+    if (file.size > 4 * 1024 * 1024) errors.push("File is too large. Maximum size is 4MB.");
     origName = path.basename(file.name).replace(/[^A-Za-z0-9.\-_]/g, "");
     if (!origName || origName === "." || origName === "..") {
       errors.push("Invalid filename after sanitization. Please use standard characters.");
