@@ -29,6 +29,25 @@ export interface AddDocumentState {
 }
 
 /**
+ * Fail fast before the browser starts pushing bytes at Blob. The client-upload
+ * handshake reports every server-side rejection as one opaque "Failed to
+ * retrieve the client token", so checking the two things that can actually be
+ * wrong here — admin session, Blob credentials — is the difference between a
+ * useful message and a dead end.
+ */
+export async function checkUploadReady(): Promise<{ error: string } | null> {
+  try {
+    await requireAdminAction();
+  } catch {
+    return { error: "Admin access required — try signing out and back in." };
+  }
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return { error: "Blob storage is not configured (BLOB_READ_WRITE_TOKEN is unset)." };
+  }
+  return null;
+}
+
+/**
  * Records a document whose bytes are already in Blob (uploaded straight from
  * the browser). Returns errors instead of redirecting because the client
  * component owns the two-phase upload → save flow and renders them inline.

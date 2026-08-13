@@ -49,6 +49,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(json);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upload failed.";
+    // The client turns every failure here into one opaque "Failed to retrieve
+    // the client token", so this log is the only place the real cause survives.
+    console.error("Document upload token request failed:", err);
     const status = /admin access required/i.test(message) ? 401 : 400;
     return NextResponse.json({ error: message }, { status });
   }

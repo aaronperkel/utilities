@@ -3,7 +3,7 @@
 import { upload } from "@vercel/blob/client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { addDocument, AddDocumentState } from "@/app/documents/actions";
+import { addDocument, AddDocumentState, checkUploadReady } from "@/app/documents/actions";
 
 interface CategoryOption {
   key: string;
@@ -82,6 +82,13 @@ export default function AddDocumentForm({
     const doc = file as File;
     setPending(true);
     setState({ errors: [] });
+
+    const notReady = await checkUploadReady();
+    if (notReady) {
+      setState({ errors: [notReady.error] });
+      setPending(false);
+      return;
+    }
     setProgress(0);
 
     try {
