@@ -15,6 +15,20 @@ import { RowDataPacket } from "mysql2";
 
 const DOCS = "/documents";
 
+/**
+ * Reads an env var through a computed key, deliberately.
+ *
+ * Next.js statically replaces the literal `process.env.FOO` form at build time,
+ * but Vercel injects the Blob store's token at *runtime* — so the literal form
+ * compiles to `undefined` in production even though the value is there when the
+ * code actually runs. A computed key can't be inlined, so it reads at runtime.
+ * This is how @vercel/blob itself reads the token, which is why put() has always
+ * worked for bill PDFs.
+ */
+function readEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
 function done(ok: string): never {
   revalidatePath(DOCS);
   redirect(`${DOCS}?ok=${encodeURIComponent(ok)}`);
@@ -41,7 +55,7 @@ export async function checkUploadReady(): Promise<{ error: string } | null> {
   } catch {
     return { error: "Admin access required — try signing out and back in." };
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!readEnv("BLOB_READ_WRITE_TOKEN")) {
     return { error: "Blob storage is not configured (BLOB_READ_WRITE_TOKEN is unset)." };
   }
   return null;
