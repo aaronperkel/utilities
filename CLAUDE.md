@@ -17,7 +17,7 @@ npm run migrate-to-tidb  # one-time webdb → TiDB data migration (needs UVM VPN
 npm run migrate-pdfs-to-blob  # one-time local bill-pdfs/ → Vercel Blob upload + DB cross-check
 ```
 
-There is no test suite; `npm run build` (which typechecks) plus hitting routes against the live DB is the verification path.
+There is no test suite; `npm run build` (which typechecks) plus hitting routes against the live DB is the verification path. `npx tsc --noEmit` runs the typecheck alone — useful when the full build is slow or wedged on a given machine.
 
 ## Configuration
 
@@ -55,7 +55,7 @@ Everything lives in Vercel Blob (`BLOB_READ_WRITE_TOKEN`; dev and prod share the
 
 Two writers with deliberately different key strategies:
 
-- **Bill PDFs** — `bills.pdf_path` is `{year}/{type}/{name}.pdf`; `billFileHref()` prepends `/files/`. Uploaded through the `addBill` **server action** with `addRandomSuffix: false` + `allowOverwrite: true`, so keys stay deterministic and re-posting a statement replaces it. Capped at 4MB by `experimental.serverActions.bodySizeLimit` in `next.config.ts` — Vercel hard-caps serverless request bodies at 4.5MB, so that is the real ceiling for this path. The local `bill-pdfs/` tree is the pre-Blob copy (gitignored, kept as backup); `scripts/migrate-pdfs-to-blob.ts` did the one-time upload.
+- **Bill PDFs** — `bills.pdf_path` is `{year}/{type}/{MMDD}.pdf`, where MMDD comes from the bill date; the **upload's own filename is deliberately ignored** (providers reuse one name for every statement — VGS always sends `ViewExternalBill.pdf` — so trusting it would collide within a year+type and silently overwrite the earlier month). `billFileHref()` prepends `/files/`. Uploaded through the `addBill` **server action** with `addRandomSuffix: false` + `allowOverwrite: true`, so keys stay deterministic and re-posting a statement for the same bill date replaces it. Capped at 4MB by `experimental.serverActions.bodySizeLimit` in `next.config.ts` — Vercel hard-caps serverless request bodies at 4.5MB, so that is the real ceiling for this path. The local `bill-pdfs/` tree is the pre-Blob copy (gitignored, kept as backup); `scripts/migrate-pdfs-to-blob.ts` did the one-time upload.
 - **Documents** — `documents.file_path` always starts with `documents/` (`isDocumentPath()` enforces it on both upload and delete, so neither can reach a bill's key); `documentFileHref()` prepends `/files/`. Uploaded **client-direct** via `@vercel/blob/client` `upload()` against `app/api/documents/upload/route.ts`, which bypasses the 4.5MB body cap entirely (25MB limit, `addRandomSuffix: true` so same-named files coexist). That route is excluded from `middleware.ts` because Blob's upload-completed callback carries no session cookie; it gates on `requireAdminAction()` itself. **`onUploadCompleted` is intentionally a no-op** — it never fires against localhost, so the DB row is inserted by `addDocument()` after `upload()` resolves, which also `head()`s the key to confirm the blob exists. `removeDocument` holds the codebase's only `del()` call.
 
 ### Key surfaces

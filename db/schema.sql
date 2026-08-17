@@ -29,7 +29,7 @@ CREATE TABLE bills (
     total           DECIMAL(10,2) NOT NULL,              -- amount + processing fee
     per_person_cost DECIMAL(10,2) NOT NULL,              -- equal split of total
     status          ENUM('unpaid','paid') NOT NULL DEFAULT 'unpaid',
-    pdf_path        VARCHAR(255)  DEFAULT NULL,          -- '{year}/{type}/{file}.pdf' under BILLS_DIR
+    pdf_path        VARCHAR(255)  DEFAULT NULL,          -- '{year}/{type}/{MMDD}.pdf', MMDD from bill_date
     KEY idx_bills_type (type_id),
     KEY idx_bills_bill_date (bill_date),
     KEY idx_bills_due_date (due_date),

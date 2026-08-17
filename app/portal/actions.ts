@@ -65,16 +65,12 @@ export async function addBill(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(billDateStr)) errors.push("Invalid bill date format. Please use YYYY-MM-DD.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr)) errors.push("Invalid due date format. Please use YYYY-MM-DD.");
 
-  let origName = "";
   let buffer: Buffer | null = null;
   if (file instanceof File && file.size > 0) {
     // Matches experimental.serverActions.bodySizeLimit in next.config.ts, which
     // in turn sits under Vercel's 4.5MB request-body cap.
     if (file.size > 4 * 1024 * 1024) errors.push("File is too large. Maximum size is 4MB.");
-    origName = path.basename(file.name).replace(/[^A-Za-z0-9.\-_]/g, "");
-    if (!origName || origName === "." || origName === "..") {
-      errors.push("Invalid filename after sanitization. Please use standard characters.");
-    } else if (!origName.toLowerCase().endsWith(".pdf")) {
+    if (!path.basename(file.name).toLowerCase().endsWith(".pdf")) {
       errors.push("Filename must end with .pdf.");
     }
     buffer = Buffer.from(await file.arrayBuffer());
@@ -91,7 +87,12 @@ export async function addBill(
   const cost = allPeople.length > 0 ? Math.round((total / allPeople.length) * 100) / 100 : 0;
 
   // Blob key mirrors the stored pdf_path so /files/<pdf_path> resolves directly.
-  const pdfPath = `${year}/${typeName}/${origName}`;
+  // The upload's own name is ignored on purpose: providers reuse one filename for
+  // every statement (VGS always sends "ViewExternalBill.pdf"), so trusting it would
+  // collide inside {year}/{type}/ and silently overwrite the earlier month's PDF.
+  // Naming by bill date matches the historical MMDD convention and keeps re-posting
+  // a corrected statement for the same date an intentional overwrite.
+  const pdfPath = `${year}/${typeName}/${billDateStr.slice(5, 7)}${billDateStr.slice(8, 10)}.pdf`;
   try {
     await put(pdfPath, buffer!, {
       access: "public",
