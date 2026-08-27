@@ -3,7 +3,7 @@ import { query } from "@/lib/db";
 
 export interface MonthlyTotals {
   labels: string[]; // 'YYYY-MM'
-  monthly: Map<string, { Gas: number; Electric: number }>;
+  monthly: Map<string, { Gas: number | null; Electric: number | null }>;
 }
 
 /** Monthly Gas/Electric totals for all history, pivoted by month. */
@@ -16,13 +16,25 @@ export async function getMonthlyTotals(): Promise<MonthlyTotals> {
      GROUP BY month, typeName
      ORDER BY month`,
   );
-  const monthly = new Map<string, { Gas: number; Electric: number }>();
+  const monthly: MonthlyTotals["monthly"] = new Map();
   for (const r of rows) {
     const m = r.month as string;
-    if (!monthly.has(m)) monthly.set(m, { Gas: 0, Electric: 0 });
+    // Seeded null, not 0: a month with only an electric bill has no gas *data*,
+    // and a 0 there would plot as a real $0 statement dragging the line to the axis.
+    if (!monthly.has(m)) monthly.set(m, { Gas: null, Electric: null });
     monthly.get(m)![r.typeName as "Gas" | "Electric"] = Number(r.total);
   }
   return { labels: [...monthly.keys()], monthly };
+}
+
+/** A month's total for one item, rounded to cents; null when there was no bill. */
+export function monthValue(
+  monthly: MonthlyTotals["monthly"],
+  label: string,
+  item: "Gas" | "Electric",
+): number | null {
+  const v = monthly.get(label)?.[item];
+  return v == null ? null : Math.round(v * 100) / 100;
 }
 
 /** Same-month-last-year series for an ordered list of 'YYYY-MM' labels. */
@@ -33,8 +45,6 @@ export function lastYearSeries(
 ): (number | null)[] {
   return labels.map((label) => {
     const [y, m] = label.split("-");
-    const lyKey = `${Number(y) - 1}-${m}`;
-    const row = monthly.get(lyKey);
-    return row ? Math.round(row[item] * 100) / 100 : null;
+    return monthValue(monthly, `${Number(y) - 1}-${m}`, item);
   });
 }

@@ -2,7 +2,7 @@ import { RowDataPacket } from "mysql2";
 import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { billEmoji, getEmojiMap } from "@/lib/bills";
-import { getMonthlyTotals, lastYearSeries } from "@/lib/trends";
+import { getMonthlyTotals, lastYearSeries, monthValue } from "@/lib/trends";
 import TrendsChart from "@/app/trends/TrendsChart";
 
 const BILL_ITEMS = ["Gas", "Electric", "Internet"] as const;
@@ -51,8 +51,8 @@ export default async function TrendsPage() {
 
   // Chart: last 12 months + same-month-last-year overlay
   const labels = allLabels.slice(-12);
-  const gas = labels.map((m) => Math.round((monthly.get(m)?.Gas ?? 0) * 100) / 100);
-  const elec = labels.map((m) => Math.round((monthly.get(m)?.Electric ?? 0) * 100) / 100);
+  const gas = labels.map((m) => monthValue(monthly, m, "Gas"));
+  const elec = labels.map((m) => monthValue(monthly, m, "Electric"));
   const gasLY = lastYearSeries(labels, monthly, "Gas");
   const elecLY = lastYearSeries(labels, monthly, "Electric");
 
