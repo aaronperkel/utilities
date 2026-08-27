@@ -82,6 +82,7 @@ export default function TrendsChart({
             label: "Gas (last year)",
             data: gasLY,
             borderColor: flame + "66",
+            backgroundColor: flame + "66",
             borderWidth: 1.5,
             borderDash: [5, 4],
             pointRadius: 0,
@@ -93,6 +94,7 @@ export default function TrendsChart({
             label: "Electric (last year)",
             data: elecLY,
             borderColor: electric + "66",
+            backgroundColor: electric + "66",
             borderWidth: 1.5,
             borderDash: [5, 4],
             pointRadius: 0,
@@ -128,11 +130,13 @@ export default function TrendsChart({
             titleFont: { family: mono },
             bodyFont: { family: mono },
             displayColors: true,
+            // Read the rows in the order the lines stack on screen: highest value first.
+            // (`filter` above already drops nulls; the ?? keeps TS happy.)
+            itemSort: (a, b) => (b.parsed.y ?? 0) - (a.parsed.y ?? 0),
+            // A series with no bill that month gets no row at all.
+            filter: (item) => item.parsed.y !== null,
             callbacks: {
-              label: (ctx) =>
-                ctx.parsed.y !== null
-                  ? ` ${ctx.dataset.label}:  $${Number(ctx.parsed.y).toFixed(2)}`
-                  : "",
+              label: (ctx) => ` ${ctx.dataset.label}:  $${Number(ctx.parsed.y).toFixed(2)}`,
             },
           },
         },
