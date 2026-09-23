@@ -23,3 +23,6 @@ bill-pdfs/
 .vscode/
 .idea/
 .claude/
+.vercel
+.env*
+!.env.example
