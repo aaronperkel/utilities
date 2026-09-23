@@ -6,6 +6,7 @@ import { getMonthlyTotals, lastYearSeries, monthValue } from "@/lib/trends";
 import TrendsChart from "@/app/trends/TrendsChart";
 
 const BILL_ITEMS = ["Gas", "Electric", "Internet"] as const;
+const CHART_START = "2026-07"; // first month the chart plots
 
 function money(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,8 +50,8 @@ export default async function TrendsPage() {
       ),
     ]);
 
-  // Chart: last 12 months + same-month-last-year overlay
-  const labels = allLabels.slice(-12);
+  // Chart: every month since CHART_START + same-month-last-year overlay
+  const labels = allLabels.filter((m) => m >= CHART_START);
   const gas = labels.map((m) => monthValue(monthly, m, "Gas"));
   const elec = labels.map((m) => monthValue(monthly, m, "Electric"));
   const gasLY = lastYearSeries(labels, monthly, "Gas");
