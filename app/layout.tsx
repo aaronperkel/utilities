@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { getCurrentPerson } from "@/lib/auth";
-import Nav from "@/app/components/Nav";
 import "./globals.css";
 
-// The ledger face: every figure, date, and section label on the site.
+// Frozen 2026-10-14: the household moved to Lejer (uselejer.com). This root renders the one
+// static "moved" page and nothing else — no session, no database, no writes.
+
 const ledger = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -13,25 +12,10 @@ const ledger = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_BASE_URL ?? "https://utilities.aaronperkel.com"),
-  title: "Perk Utilities",
-  description: "A dashboard to keep track of the monthly utilities of our apartment",
-  authors: [{ name: "Aaron Perkel" }],
-  openGraph: {
-    title: "Perk Utilities",
-    description: "Shared utility bills for 77 N Union #3 — split, tracked, settled.",
-    url: "/",
-    siteName: "Perk Utilities",
-    locale: "en_US",
-    type: "website",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "77 N Union #3 — Perk Utilities" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Perk Utilities",
-    description: "Shared utility bills for 77 N Union #3 — split, tracked, settled.",
-    images: ["/og.png"],
-  },
+  metadataBase: new URL("https://utilities.aaronperkel.com"),
+  title: "Perk Utilities · moved to Lejer",
+  description: "77 N Union #3's bills now live on Lejer.",
+  robots: { index: false, follow: false },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -40,8 +24,6 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-  manifest: "/site.webmanifest",
-  appleWebApp: { capable: true, title: "77 N Union", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -53,39 +35,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export const dynamic = "force-dynamic";
-
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const person = await getCurrentPerson();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={ledger.variable}>
       <body className="flex min-h-dvh flex-col font-sans">
-        <Nav authed={!!person} isAdmin={!!person?.isAdmin} />
-        <div className="mx-auto w-full max-w-[1000px] flex-1 px-4 py-8 sm:px-5">
-          {children}
-        </div>
+        <div className="mx-auto w-full max-w-[1000px] flex-1 px-4 py-8 sm:px-5">{children}</div>
         <footer className="mx-auto w-full max-w-[1000px] px-4 pb-8 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4 text-xs text-ink-muted">
-            <span className="font-mono uppercase tracking-[0.1em]">
-              Perk Utilities · Est. 2024
-            </span>
-            <span>
-              <a className="hover:text-ink" href="tel:4782628935">
-                478‑262‑8935
-              </a>
-              <span className="mx-2">·</span>
-              <a className="hover:text-ink" href="mailto:me@aaronperkel.com">
-                me@aaronperkel.com
-              </a>
-            </span>
+            <span className="font-mono uppercase tracking-[0.1em]">Perk Utilities · 2024–2026</span>
+            <a className="hover:text-ink" href="mailto:me@aaronperkel.com">
+              me@aaronperkel.com
+            </a>
           </div>
         </footer>
-        <Analytics />
       </body>
     </html>
   );
