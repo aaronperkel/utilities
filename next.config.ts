@@ -1,23 +1,10 @@
 import type { NextConfig } from "next";
 
+// Frozen 2026-10-14: the household moved to Lejer. Every URL is a permanent redirect to the
+// household's page there; the static "moved" page in app/ is only the fallback behind it.
 const nextConfig: NextConfig = {
-  // mysql2 must stay a Node dependency, not get bundled
-  serverExternalPackages: ["mysql2", "nodemailer"],
-  experimental: {
-    // Reuse a page's RSC payload for 30s of client-side navigation, so
-    // bouncing between Home/Trends/Portal doesn't re-query the DB each time.
-    // Server actions revalidatePath, which purges this cache after mutations.
-    staleTimes: { dynamic: 30 },
-    // Bill PDFs post through a server action, whose body defaults to 1MB. Vercel
-    // caps serverless request bodies at 4.5MB, so 4mb is the practical ceiling —
-    // anything larger has to go the client-direct route that /documents uses.
-    serverActions: { bodySizeLimit: "4mb" },
-  },
   async redirects() {
-    return [
-      // The bulk-email page moved under the portal in the 2026 refresh
-      { source: "/email", destination: "/portal/email", permanent: true },
-    ];
+    return [{ source: "/:path*", destination: "https://uselejer.com/77-n-union-st", permanent: true }];
   },
 };
 
